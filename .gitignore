@@ -3,7 +3,7 @@
 src/*.o
 src/int/*.o
 src/rsa/*.o
-
+*.bin
 # Ignore dependency files
 *.d
 src/*.d

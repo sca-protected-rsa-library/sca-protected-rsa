@@ -7,7 +7,6 @@ GDB		= $(PREFIX)-gdb
 OPENCM3_DIR = libopencm3
 
 
-
 LDSCRIPT   = src/stm32f405x6_CCM.ld
 LIBNAME    = opencm3_stm32f4
 ARCH_FLAGS = -mthumb -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16
@@ -16,7 +15,7 @@ SRCS := $(wildcard src/codec/*.c src/int/*.c src/rsa/*.c)
 OBJS := src/stm32f4_wrapper.o $(SRCS:.c=.o)
 
 CFLAGS		+= -O2 \
-		   -DNO_FILESYSTEM -DWC_NO_RSA_BLINDING -Wall -Wextra -Wimplicit-function-declaration \
+		   -Wall -Wextra -Wimplicit-function-declaration \
 		   -Wredundant-decls -Wmissing-prototypes -Wstrict-prototypes \
 		   -Wundef -Wshadow \
 		   -I./src \
@@ -61,10 +60,12 @@ lib:
 	$(CC) $(CFLAGS) -o $@ -c $<
 
 clean:
-	find . -name \*.o -type f -exec rm -f {} \;
-	find . -name \*.d -type f -exec rm -f {} \;
+	find ./src -name \*.o -type f -exec rm -f {} \;
+	find ./src -name \*.d -type f -exec rm -f {} \;
 	rm -f *.elf
 	rm -f *.bin
+	rm -f *.o
+	rm -f *.d
 
 check:
 	@echo $(OBJS)
