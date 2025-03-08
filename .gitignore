@@ -1,0 +1,11 @@
+# Ignore object files
+*.o
+src/*.o
+src/int/*.o
+src/rsa/*.o
+
+# Ignore dependency files
+*.d
+src/*.d
+src/int/*.d
+src/rsa/*.d
