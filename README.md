@@ -22,15 +22,15 @@ This project requires the following tools:
 
 1. **Initialize and Update Submodules**
 
-   The project uses [libopencm3](https://github.com/libopencm3/libopencm3) as a submodule. Run:
+  The project uses [libopencm3](https://github.com/libopencm3/libopencm3) as a submodule. Run:
    ```bash
    git submodule update --init --recursive
    ```
 2. **Build the libopencm3 Library**
   Before building the project, compile the libopencm3 library:
-  ```bash
-   make lib
-   ```
+    ```bash
+     make lib
+    ```
 3. **Compile the Project**
   Once the library is built, compile the project by running:
    ```bash
@@ -38,9 +38,9 @@ This project requires the following tools:
    ```
 4. **Flash the Code**
   After a successful build, flash the compiled code to your connected STM32F4 Discovery board with:
-  ```bash
-   make flash
-   ```
+    ```bash
+    make flash
+    ```
 
 ---
 
@@ -63,14 +63,7 @@ This project requires the following tools:
     Contains the big-integer (big-int) implementation.
 
   - **src/rsa/**  
-    Contains the RSA implementation, including description and encryption functions:
-    - **FI-countermeasure.c**: Fault injection countermeasure with all SCA countermeasures.
-    - **message_and_exp_blind.c**: Implements only the message and exponent blinding countermeasure.
-    - **modulus_randomization.c**: Combines message/exponent blinding with modulus re-randomization countermeasure.
-    - **pre_randomization.c**: Extends the countermeasure in `modulus_randomization.c` with key pre-randomization.
-    - **rsa_i31_priv.c**: Default BearSSL description (private operations).
-    - **rsa_i31_pub.c**: Default BearSSL encryption (public operations).
-    - **rsa_i31_randkey.c**: Helper function for blinding and pseudorandom number generation.
+    Contains the RSA implementation, including description and encryption functions.
 
 ---
 
