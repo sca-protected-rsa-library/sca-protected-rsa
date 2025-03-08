@@ -927,12 +927,59 @@ void br_i31_mulacc(uint32_t *d, const uint32_t *a, const uint32_t *b);
 uint32_t br_i31_moddiv(uint32_t *x, const uint32_t *y,
 	const uint32_t *m, uint32_t m0i, uint32_t *t);
 
-void init_key(const br_rsa_private_key *sk, br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwlen);
-void update_key(br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwlen );
-void br_i31_init_key( const br_rsa_private_key *sk, br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwlen);
-void br_i31_update_key(  br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwlen );
-size_t blind_exponent(unsigned char * x, const unsigned char* d, const size_t size, uint32_t * m, uint32_t * t1);
+/**
+ * \brief Initialize a pre-randomized RSA private key.
+ *
+ * This function takes a plaintext BearSSL RSA private key (`sk`) and converts it into a pre-randomized key (`new_sk`)
+ * that is used in our implementation. A temporary buffer (`tmp`) is provided for intermediate computations,
+ * and `fwlen` specifies the word length of the largest RSA factor.
+ *
+ * \param sk      Pointer to the plaintext BearSSL RSA private key.
+ * \param new_sk  Pointer to the pre-randomized RSA private key.
+ * \param tmp     Temporary buffer for intermediate computations.
+ * \param fwlen   Word length of the largest RSA factor.
+ */
+void br_i31_init_key(const br_rsa_private_key *sk, br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwlen);
+
+/**
+ * \brief Update (re-randomize) the pre-randomized RSA private key.
+ *
+ * This function re-randomizes the already pre-randomized RSA private key (`new_sk`). It uses a temporary buffer (`tmp`)
+ * for intermediate calculations, where `fwlen` indicates the word length of the largest RSA factor.
+ *
+ * \param new_sk  Pointer to the RSA private key to be updated.
+ * \param tmp     Temporary buffer for intermediate computations.
+ * \param fwlen   Word length of the largest RSA factor.
+ */
+void br_i31_update_key(br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwlen);
+
+/**
+ * \brief Perform classical exponent blinding.
+ *
+ * This function applies exponent blinding to protect against side-channel attacks. The original exponent (`d`)
+ * is blinded and the result is stored in `x`. The randomized Euler’s totient value (either φ_p or φ_q) from the
+ * modified key is provided in `m`, and `t1` serves as a workspace buffer.
+ *
+ * \param x     Destination buffer for the blinded exponent.
+ * \param d     Original exponent.
+ * \param size  Size of the exponent in bytes.
+ * \param m     Randomized Euler’s totient (either φ_p or φ_q) from the modified key.
+ * \param t1    Temporary workspace buffer.
+ * \return      The size (in bytes) of the resulting blinded exponent.
+ */
+size_t blind_exponent(unsigned char *x, const unsigned char *d, const size_t size, uint32_t *m, uint32_t *t1);
+
+/**
+ * \brief Generate random numbers.
+ *
+ * This function generates random numbers and stores them in the destination buffer (`x`). The parameter `esize`
+ * specifies the number of bits to generate.
+ *
+ * \param x      Destination buffer for the generated random numbers.
+ * \param esize  Number of bits to generate.
+ */
 void make_rand(uint32_t *x, uint32_t esize);
+
 
 
 #endif

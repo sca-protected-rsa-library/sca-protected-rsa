@@ -23,9 +23,9 @@ This project requires the following tools:
 1. **Initialize and Update Submodules**
 
   The project uses [libopencm3](https://github.com/libopencm3/libopencm3) as a submodule. Run:
-   ```bash
-   git submodule update --init --recursive
-   ```
+    ```bash
+    git submodule update --init --recursive
+    ```
 2. **Build the libopencm3 Library**
   Before building the project, compile the libopencm3 library:
     ```bash
@@ -33,9 +33,9 @@ This project requires the following tools:
     ```
 3. **Compile the Project**
   Once the library is built, compile the project by running:
-   ```bash
-   make
-   ```
+    ```bash
+    make
+    ```
 4. **Flash the Code**
   After a successful build, flash the compiled code to your connected STM32F4 Discovery board with:
     ```bash
