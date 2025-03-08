@@ -876,20 +876,23 @@ uint32_t br_i31_modpow_opt(uint32_t *x, const unsigned char *e, size_t elen,
 
 
 /*
- * Compute a modular exponentiation. x[] MUST be an integer modulo m[]
- * (same announced bit length, lower value). m[] MUST be odd. The
- * exponent is in big-endian unsigned notation, over 'elen' bytes. The
- * "m0i" parameter is equal to -(1/m0) mod 2^31, where m0 is the least
- * significant value word of m[] (this works only if m[] is an odd
- * integer). The tmp[] array is used for temporaries, and has size
- * 'twlen' words; it must be large enough to accommodate at least two
- * temporary values with the same size as m[] (including the leading
- * "bit length" word). If there is room for more temporaries, then this
- * function may use the extra room for window-based optimisation,
- * resulting in faster computations.
+ * Compute a modular exponentiation with module re-randomization.
  *
- * Returned value is 1 on success, 0 on error. An error is reported if
- * the provided tmp[] array is too short.
+ * x[] MUST be an integer modulo m[] (same announced bit length, lower value).
+ * m[] MUST be odd. The exponent is in big-endian unsigned notation, over 'elen' bytes.
+ * The "m0i" parameter is equal to -(1/m0) mod 2^31, where m0 is the least significant
+ * value word of m[] (this works only if m[] is an odd integer).
+ *
+ * This function incorporates module re-randomization techniques, which randomize the modulus 
+ * during computation. This additional step enhances protection against side-channel attacks.
+ *
+ * The tmp[] array is used for temporaries and has size 'twlen' words; it must be large enough
+ * to accommodate at least two temporary values with the same size as m[] (including the leading
+ * "bit length" word). If there is room for more temporaries, then this function may use the extra
+ * space for window-based optimisation, resulting in faster computations.
+ *
+ * Returned value is 1 on success, 0 on error. An error is reported if the provided tmp[] array
+ * is too short.
  */
 uint32_t
 br_i31_modpow_opt_rand(uint32_t *x,
@@ -963,7 +966,7 @@ void br_i31_update_key(br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwlen
  * \param x     Destination buffer for the blinded exponent.
  * \param d     Original exponent.
  * \param size  Size of the exponent in bytes.
- * \param m     Randomized Euler’s totient (either φ_p or φ_q) from the modified key.
+ * \param m     Blinded Euler’s totient (either φ_p or φ_q) from the modified key.
  * \param t1    Temporary workspace buffer.
  * \return      The size (in bytes) of the resulting blinded exponent.
  */
@@ -980,6 +983,16 @@ size_t blind_exponent(unsigned char *x, const unsigned char *d, const size_t siz
  */
 void make_rand(uint32_t *x, uint32_t esize);
 
-
-
+/**
+ * @brief Initialize a temporary RSA key structure for re-randomization.
+ *
+ * This function creates a mutable copy of a constant BearSSL RSA private key by populating
+ * the provided temporary RSA key structure with the key components and associated buffers.
+ * It also initializes the random factor (r1) used for key pre-randomization, which is essential
+ * for subsequent operations such as re-randomization of the key to protect against fault injection attacks.
+ *
+ * @param temp Pointer to the temporary RSA key structure to be initialized.
+ * @param sk   Pointer to the original (const) BearSSL RSA private key.
+ */
+void init_temp_rsa_key(temp_rsa_key_t *temp, const br_rsa_private_key *sk);
 #endif

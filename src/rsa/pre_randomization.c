@@ -93,60 +93,18 @@ br_rsa_i31_private_mod_prerand(unsigned char *x, const br_rsa_private_key *sk)
         xlen = (sk->n_bitlen + 7) >> 3;
     
   
-        br_rsa_private_key rsa_sk;
         mq = tmp;
-        uint32_t r2[(BR_RSA_RAND_FACTOR + 63) >> 5];
-        uint32_t r3[(BR_RSA_RAND_FACTOR + 63) >> 5];
-        uint32_t phi_p[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR +  63) >> 5];
-        uint32_t phi_q[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR + 63) >> 5];
-        unsigned char n_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
-        unsigned char p_buf[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR + 15) >> 3];
-        unsigned char q_buf[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR + 15) >> 3];
-        unsigned char dp_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
-        unsigned char dq_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
-        unsigned char iq_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
-        unsigned char e_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
-        rsa_sk.r1 = r2;
-        rsa_sk.r2 = r3;
-        rsa_sk.n = n_buf;
-        rsa_sk.p = p_buf;
-        rsa_sk.q = q_buf;
-        rsa_sk.dp = dp_buf;
-        rsa_sk.dq = dq_buf;
-        rsa_sk.iq = iq_buf;
-        rsa_sk.phi_p = phi_p;
-        rsa_sk.phi_q = phi_q;
-        rsa_sk.e = e_buf;
-    
         
-        //br_i31_init_key(sk, &rsa_sk, tmp, fwlen);
-        rsa_sk.n_bitlen = sk->n_bitlen;
-        memcpy(rsa_sk.n, sk->n, (sk->n_bitlen +7) >> 3);
-        memcpy(rsa_sk.e, sk->e, sk->elen);
-        rsa_sk.elen = sk->elen;
-        memcpy(rsa_sk.p, sk->p, sk->plen);
-        rsa_sk.plen = sk->plen;
-        memcpy(rsa_sk.q, sk->q, sk->qlen);
-        rsa_sk.qlen = sk->qlen;
-        memcpy(rsa_sk.iq, sk->iq, sk->iqlen);
-        rsa_sk.iqlen = sk->iqlen;
-        memcpy(rsa_sk.dp, sk->dp, sk->dplen);
-        rsa_sk.dplen = sk->dplen;
-        memcpy(rsa_sk.dq, sk->dq, sk->dqlen);
-        rsa_sk.dqlen = sk->dqlen;
+    
+        // Assume tmp and fwlen are defined appropriately.
+        temp_rsa_key_t rsa_sk;
+    
+        // Initialize the temporary RSA key with the original (const) key data.
+        init_temp_rsa_key(&rsa_sk, sk);
 
-        memcpy(rsa_sk.r1 + 1, sk->r1 + 1, (sk->r1[0] + 7) >> 3);
-        rsa_sk.r1[0] = sk->r1[0];
-
-        memcpy(rsa_sk.r2 + 1, sk->r2 + 1, (sk->r2[0] + 7) >> 3);
-        rsa_sk.r2[0] = sk->r2[0];
-
-        memcpy(rsa_sk.phi_p + 1, sk->phi_p + 1, (sk->phi_p[0] + 7) >> 3);
-        rsa_sk.phi_p[0] = sk->phi_p[0];
-
-        memcpy(rsa_sk.phi_q + 1, sk->phi_q + 1, (sk->phi_q[0] + 7) >> 3);
-        rsa_sk.phi_q[0] = sk->phi_q[0];
-        br_i31_update_key( &rsa_sk, tmp, fwlen);
+        // Perform key update (re-randomization) using the temporary key.
+        br_i31_update_key(&rsa_sk.key, tmp, fwlen);
+       
     
         uint32_t r1[(BR_RSA_RAND_FACTOR + 63) >> 5];
         make_rand( r1, BR_RSA_RAND_FACTOR);
@@ -173,7 +131,7 @@ br_rsa_i31_private_mod_prerand(unsigned char *x, const br_rsa_private_key *sk)
         
         t2 = mq + 2 * fwlen;
         br_i31_zero(t2, mq[0]);
-        br_i31_decode(t2, rsa_sk.n, (rsa_sk.n_bitlen + 7) >> 3);
+        br_i31_decode(t2, rsa_sk.key.n, (rsa_sk.key.n_bitlen + 7) >> 3);
         /*
          * We encode the modulus into bytes, to perform the comparison
          * with bytes. We know that the product length, in bytes, is
@@ -201,7 +159,7 @@ br_rsa_i31_private_mod_prerand(unsigned char *x, const br_rsa_private_key *sk)
          */     
         
         uint32_t *n = t2;
-        br_i31_decode(n, rsa_sk.n, (rsa_sk.n_bitlen + 7) >> 3);
+        br_i31_decode(n, rsa_sk.key.n, (rsa_sk.key.n_bitlen + 7) >> 3);
         uint32_t *c = t3;
         uint32_t *c_prime = mq + 6 * fwlen;
         uint32_t * r_to_e = mq; 
@@ -213,7 +171,7 @@ br_rsa_i31_private_mod_prerand(unsigned char *x, const br_rsa_private_key *sk)
         memcpy(r_to_e + 1, r1 + 1,  ((*r1 + 7) >> 3));
         r_to_e[0] = n[0];
 
-        r &= br_i31_modpow_opt(r_to_e, rsa_sk.e, rsa_sk.elen, n,  br_i31_ninv31(n[1]), mq + 8 * fwlen, TLEN - 8 * fwlen);
+        r &= br_i31_modpow_opt(r_to_e, rsa_sk.key.e, rsa_sk.key.elen, n,  br_i31_ninv31(n[1]), mq + 8 * fwlen, TLEN - 8 * fwlen);
 
         br_i31_zero(c_prime, n[0]);
         c[0] = c_prime[0];
@@ -223,8 +181,8 @@ br_rsa_i31_private_mod_prerand(unsigned char *x, const br_rsa_private_key *sk)
         mp = tmp + 5 * fwlen;
 
 
-        br_i31_decode(mq,  rsa_sk.q,  rsa_sk.qlen);
-        br_i31_decode(mp,  rsa_sk.p,  rsa_sk.plen);
+        br_i31_decode(mq,  rsa_sk.key.q,  rsa_sk.key.qlen);
+        br_i31_decode(mp,  rsa_sk.key.p,  rsa_sk.key.plen);
     
         s2 = tmp;
         s1 = tmp + fwlen;
@@ -245,7 +203,7 @@ br_rsa_i31_private_mod_prerand(unsigned char *x, const br_rsa_private_key *sk)
 
         
         unsigned char* dq = (unsigned char *) (tmp + 6 *fwlen); 
-        size_t dqlen = blind_exponent( dq, rsa_sk.dq, rsa_sk.dqlen, rsa_sk.phi_q, tmp + 7 * fwlen);
+        size_t dqlen = blind_exponent( dq, rsa_sk.key.dq, rsa_sk.key.dqlen, rsa_sk.key.phi_q, tmp + 7 * fwlen);
 
                 
         /*
@@ -262,7 +220,7 @@ br_rsa_i31_private_mod_prerand(unsigned char *x, const br_rsa_private_key *sk)
          */
         
         unsigned char* dp = (unsigned char *) (tmp + 6 *fwlen); 
-        size_t dplen = blind_exponent( dp, rsa_sk.dp, rsa_sk.dplen, rsa_sk.phi_p, tmp + 7 * fwlen);
+        size_t dplen = blind_exponent( dp, rsa_sk.key.dp, rsa_sk.key.dplen, rsa_sk.key.phi_p, tmp + 7 * fwlen);
 
         
         p0i = br_i31_ninv31(mp[1]);
@@ -290,7 +248,7 @@ br_rsa_i31_private_mod_prerand(unsigned char *x, const br_rsa_private_key *sk)
         br_i31_reduce(t2, s2, mp); 
         br_i31_add(s1, mp, br_i31_sub(s1, t2, 1));
         br_i31_to_monty(s1, mp);
-        br_i31_decode_reduce(t1,  rsa_sk.iq,  rsa_sk.iqlen, mp);
+        br_i31_decode_reduce(t1,  rsa_sk.key.iq,  rsa_sk.key.iqlen, mp);
         br_i31_montymul(t2, s1, t1, mp, p0i);
         
         /*

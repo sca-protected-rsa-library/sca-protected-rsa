@@ -157,13 +157,38 @@ typedef struct {
 } br_rsa_public_key;
 
 /**
- * \brief RSA private key.
+ * @brief Modified RSA private key for enhanced security countermeasures.
  *
- * The structure references the private factors, reduced private
- * exponents, and CRT coefficient. It also contains the bit length of
- * the modulus. The big integers use unsigned big-endian representation;
- * extra leading bytes of value 0 are allowed. However, the modulus bit
- * length (`n_bitlen`) MUST be exact.
+ * This structure extends the standard BearSSL RSA private key by adding extra fields
+ * to support countermeasures against side-channel and fault injection attacks.
+ * In addition to the conventional key components (modulus, prime factors, reduced private
+ * exponents, CRT coefficient, and public exponent), it includes:
+ *
+ * - **r1**: Random factor for the first prime factor (p), used for key pre-randomization.
+ * - **r2**: Random factor for the second prime factor (q), used for blinding.
+ * - **phi_p**: Randomized Euler’s totient for prime p.
+ * - **phi_q**: Randomized Euler’s totient for prime q.
+ *
+ * The big integers in this structure use an unsigned big-endian representation;
+ * extra leading zero bytes are allowed, but the modulus bit length (`n_bitlen`) must be exact.
+ *
+ * Standard Fields:
+ * - **n**: Modulus.
+ * - **n_bitlen**: Exact modulus bit length (in bits).
+ * - **p**: First prime factor.
+ * - **plen**: Length of the first prime factor in bytes.
+ * - **q**: Second prime factor.
+ * - **qlen**: Length of the second prime factor in bytes.
+ * - **dp**: First reduced private exponent.
+ * - **dplen**: Length of the first reduced private exponent in bytes.
+ * - **dq**: Second reduced private exponent.
+ * - **dqlen**: Length of the second reduced private exponent in bytes.
+ * - **iq**: CRT coefficient.
+ * - **iqlen**: Length of the CRT coefficient in bytes.
+ * - **e**: Public exponent.
+ * - **elen**: Length of the public exponent in bytes.
+ *
+ * @see br_rsa_private_key
  */
 typedef struct {
 	/** \brief Modulus. */
@@ -203,6 +228,49 @@ typedef struct {
 	/** \brief randomized phi(q). */
 	uint32_t *phi_q;
 } br_rsa_private_key;
+
+#define BR_MAX_RSA_SIZE   4096
+#define BR_RSA_RAND_FACTOR 62
+
+/**
+ * @brief Composite structure for a temporary RSA key and its associated buffers.
+ *
+ * This structure encapsulates a mutable RSA private key along with all the temporary buffers
+ * needed for re-randomization and fault injection countermeasures. It is used to create a
+ * working copy of a constant (plaintext) BearSSL RSA private key, so that operations such as
+ * key re-randomization can be performed without modifying the original key.
+ *
+ * Members:
+ * - key: The RSA private key structure where pointers to the temporary buffers are set.
+ * - r2: Buffer for a random factor used in blinding.
+ * - r3: Buffer for a second random factor used in blinding.
+ * - phi_p: Buffer for storing the randomized Euler’s totient (φ_p) for prime p.
+ * - phi_q: Buffer for storing the randomized Euler’s totient (φ_q) for prime q.
+ * - n_buf: Buffer for the modulus (n).
+ * - p_buf: Buffer for the prime factor p.
+ * - q_buf: Buffer for the prime factor q.
+ * - dp_buf: Buffer for d mod (p-1), part of the private exponent.
+ * - dq_buf: Buffer for d mod (q-1), part of the private exponent.
+ * - iq_buf: Buffer for the multiplicative inverse of q.
+ * - e_buf: Buffer for the public exponent (e).
+ * - r1: Buffer for the random factor used in key pre-randomization.
+ */
+typedef struct {
+    br_rsa_private_key key;
+    uint32_t r2[(BR_RSA_RAND_FACTOR + 63) >> 5];
+    uint32_t r3[(BR_RSA_RAND_FACTOR + 63) >> 5];
+    uint32_t phi_p[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR + 63) >> 5];
+    uint32_t phi_q[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR + 63) >> 5];
+    unsigned char n_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
+    unsigned char p_buf[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR + 15) >> 3];
+    unsigned char q_buf[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR + 15) >> 3];
+    unsigned char dp_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
+    unsigned char dq_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
+    unsigned char iq_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
+    unsigned char e_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
+    uint32_t r1[(BR_RSA_RAND_FACTOR + 63) >> 5];
+} temp_rsa_key_t;
+
 
 
 /*
