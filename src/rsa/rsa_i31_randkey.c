@@ -1,6 +1,6 @@
 #include "bearssl.h"
 #include "inner.h"
-#include "../stm32wrapper.h"
+#include "stm32wrapper.h"
 
 void
 make_rand(uint32_t *x, uint32_t esize)

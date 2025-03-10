@@ -22,7 +22,7 @@
  * SOFTWARE.
  */
 
-#include "../stm32wrapper.h"
+#include "stm32wrapper.h"
 #include "bearssl.h"
 #include "inner.h"
 #define U      (2 + ((BR_MAX_RSA_FACTOR + 30) / 31))

@@ -24,7 +24,7 @@
 
 #include "bearssl.h"
 #include "inner.h"
-#include "../stm32wrapper.h"
+#include "stm32wrapper.h"
 
 #define U      (2 + ((BR_MAX_RSA_FACTOR + 30) / 31))
 #define TLEN   (24 * U)
