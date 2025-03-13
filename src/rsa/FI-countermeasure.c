@@ -260,7 +260,7 @@ br_rsa_i31_private_FI(unsigned char *x, const br_rsa_private_key *sk)
                 tmp + 7 * fwlen, TLEN - 7 * fwlen);
 
 
-        /*
+                /*
          * Compute:
          *   h = (s1 - s2)*(1/q) mod p
          * s1 is an integer modulo p, but s2 is modulo q. PKCS#1 is
@@ -309,9 +309,8 @@ br_rsa_i31_private_FI(unsigned char *x, const br_rsa_private_key *sk)
         br_i31_sub(s_r2, s2_prime, 1);
         br_i31_sub(s_r1, s1_prime, 1);
 
-        if(!br_i31_iszero(s_r2)  || !br_i31_iszero(s_r1)){
-                r = 0;
-        }
+        br_i31_add(s_r1, s_r2, 1);
+        br_i31_add(r1, s_r1, 1);
        
         t1 = tmp + 4 * fwlen;
         br_i31_decode(n, rsa_sk.key.n, (rsa_sk.key.n_bitlen + 7) >> 3);
@@ -334,7 +333,22 @@ br_rsa_i31_private_FI(unsigned char *x, const br_rsa_private_key *sk)
          * we can just use it right away.
          */
         
+        br_i31_zero(t2, n[0]);
+        memcpy(t2 + 1, t1 + 1, (t1[0] + 7 >> 3));
+        t2[0] = t1[0];
+        
+        br_i31_modpow_opt_rand(&rng.vtable, t2, rsa_sk.key.e, rsa_sk.key.elen, n, br_i31_ninv31(n[1]),
+                tmp + 8 * fwlen, TLEN - 8 * fwlen);      
 
+        unsigned char * c_verif = (unsigned char *) n;
+        br_i31_encode(c_verif, xlen, t2);
+        uint32_t mask = 0xFFFFFFFF;
+        for( int i = 0; i < xlen; ++i){
+               mask &= -EQ(c_verif[i],x[i]);
+        }
+        for( int i = 0; i < xlen; ++i){
+                t1[i] &= mask;
+        }
         br_i31_encode(x, xlen, t1);
 
 
