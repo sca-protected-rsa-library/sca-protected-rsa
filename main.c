@@ -200,7 +200,7 @@ int main(void) {
 
   	for (i = 0; i < MAX_ROUND; i++) {
     		oldcount = DWT_CYCCNT;
-    		ret = br_rsa_i31_private_FI(tmp, &RSA4096_SK2);
+    		ret = br_rsa_i31_private_blind_mod_key_FI(tmp, &RSA4096_SK2);
     		newcount += (DWT_CYCCNT - oldcount);
   	}
 
@@ -223,7 +223,7 @@ int main(void) {
 		send_USART_str((unsigned char*)str);
 	}
 	check_equals("KAT RSA pub", t2, t3, len);
-	if (!br_rsa_i31_private_FI(t3, &RSA4096_SK2)) {
+	if (!br_rsa_i31_private_blind_mod_key_FI(t3, &RSA4096_SK2)) {
 		sprintf(str, "RSA private operation failed (4096)\n");
 		send_USART_str((unsigned char*)str);
 	}

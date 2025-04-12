@@ -33,7 +33,7 @@
 
 /* see bearssl_rsa.h */
 uint32_t
-br_rsa_i31_private_mod_prerand(unsigned char *x, const br_rsa_private_key *sk)
+br_rsa_i31_private_blind_mod_key(unsigned char *x, const br_rsa_private_key *sk)
 {
         const unsigned char *p, *q;
         size_t plen, qlen;
@@ -130,7 +130,7 @@ br_rsa_i31_private_mod_prerand(unsigned char *x, const br_rsa_private_key *sk)
          */
         
         t2 = mq + 2 * fwlen;
-        br_i31_zero(t2, mq[0]);
+        //br_i31_zero(t2, mq[0]);
         br_i31_decode(t2, rsa_sk.key.n, (rsa_sk.key.n_bitlen + 7) >> 3);
         /*
          * We encode the modulus into bytes, to perform the comparison

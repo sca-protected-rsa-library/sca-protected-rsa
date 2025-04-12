@@ -295,19 +295,24 @@ uint32_t br_rsa_i31_public(unsigned char *x, size_t xlen,
 /**
  * \brief RSA private key engine "i31".
  *
+ * This is the core BearSSL RSA private key implementation using the "i31"
+ * representation.
+ *
  * \see br_rsa_private
  *
- * \param x    operand to exponentiate.
+ * \param x    Operand to exponentiate.
  * \param sk   RSA private key.
  * \return  1 on success, 0 on error.
  */
 uint32_t br_rsa_i31_private(unsigned char *x,
 	const br_rsa_private_key *sk);
+
 /**
  * \brief RSA private key engine "i31" with Message and Exponent Blinding.
  *
- * This function implements the RSA private key operation with the message and exponent blinding countermeasure.
- * The blinding randomizes the message and exponent values during RSA operations to mitigate first-order side-channel attacks.
+ * This function extends the core engine by incorporating message and exponent
+ * blinding countermeasures. The blinding randomizes the message and exponent values
+ * during RSA operations to mitigate first-order side-channel attacks.
  *
  * \see br_rsa_private
  *
@@ -315,14 +320,15 @@ uint32_t br_rsa_i31_private(unsigned char *x,
  * \param sk   RSA private key.
  * \return  1 on success, 0 on error.
  */
-uint32_t br_rsa_i31_private_msg_blind(unsigned char *x,
+uint32_t br_rsa_i31_private_blind(unsigned char *x,
 	const br_rsa_private_key *sk);
 
 /**
  * \brief RSA private key engine "i31" with Modulus Randomization.
  *
- * This function implements the RSA private key operation using modulus randomization.
- * The algorithm randomizes the modulus during each iteration of exponentiation, adding an extra layer of protection against side-channel leakage.
+ * This variant builds on the message/exponent blinding engine by adding modulus 
+ * re-randomization. The algorithm randomizes the modulus during each iteration of
+ * exponentiation, providing an extra layer of protection against side-channel leakage.
  *
  * \see br_rsa_private
  *
@@ -330,15 +336,16 @@ uint32_t br_rsa_i31_private_msg_blind(unsigned char *x,
  * \param sk   RSA private key.
  * \return  1 on success, 0 on error.
  */
-uint32_t br_rsa_i31_private_mod_rand(unsigned char *x,
+uint32_t br_rsa_i31_private_blind_mod(unsigned char *x,
 	const br_rsa_private_key *sk);
 
 /**
  * \brief RSA private key engine "i31" with Modulus Randomization and Key Pre-Randomization.
  *
- * This function extends the modulus randomization countermeasure by incorporating key pre-randomization.
- * In addition to message/exponent blinding and modulus re-randomization, it randomizes key components (e.g., pre-masking the key)
- * to further enhance protection against both side-channel and fault injection attacks.
+ * This function further extends the previous countermeasures by incorporating key 
+ * pre-randomization. In addition to message/exponent blinding and modulus re-randomization,
+ * it randomizes key components (i.e., pre-masking the key) to enhance protection 
+ * against side-channel and fault injection attacks.
  *
  * \see br_rsa_private
  *
@@ -346,14 +353,16 @@ uint32_t br_rsa_i31_private_mod_rand(unsigned char *x,
  * \param sk   RSA private key.
  * \return  1 on success, 0 on error.
  */
-uint32_t br_rsa_i31_private_mod_prerand(unsigned char *x,
+uint32_t br_rsa_i31_private_blind_mod_key(unsigned char *x,
 	const br_rsa_private_key *sk);
 
 /**
  * \brief RSA private key engine "i31" with Fault Injection Countermeasures.
  *
- * This function implements additional fault injection (FI) countermeasures into the RSA private key operation.
- * It integrates protections designed to detect and mitigate hardware fault attacks alongside the existing side-channel countermeasures.
+ * This function integrates additional fault injection (FI) countermeasures into the RSA
+ * private key operation. It builds on the full stack of protections (message/exponent blinding,
+ * modulus randomization, and key pre-randomization) by adding measures designed to detect and mitigate
+ * hardware fault attacks.
  *
  * \see br_rsa_private
  *
@@ -361,8 +370,9 @@ uint32_t br_rsa_i31_private_mod_prerand(unsigned char *x,
  * \param sk   RSA private key.
  * \return  1 on success, 0 on error.
  */
-uint32_t br_rsa_i31_private_FI(unsigned char *x,
-		const br_rsa_private_key *sk);
+uint32_t br_rsa_i31_private_blind_mod_key_FI(unsigned char *x,
+	const br_rsa_private_key *sk);
+
 
 
 #ifdef __cplusplus

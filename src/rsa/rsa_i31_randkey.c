@@ -6,17 +6,24 @@ void
 make_rand(uint32_t *x, uint32_t esize)
 {
        int len = (esize + 31) >> 5;
+        unsigned m;
        for (int i = 1; i <= len; ++i){
                 x[i] = 0;
         }
         for (int i = 1; i <= len; ++i){
                 while (x[i] == 0){
-                  rng_get_random(&x[i]);        
+                  x[i] = rng_get_random_blocking();        
                 } 
                 x[i] &= 0x7FFFFFFF;
         }
         x[1] |= 1;
         x[0] = br_i31_bit_length(x + 1, len);
+        m = esize & 31;
+        if (m == 0) {
+                x[len] &= 0x7FFFFFFF;
+        } else {
+                x[len] &= 0x7FFFFFFF >> (31 - m);
+        }
 }
 
 void
@@ -40,49 +47,7 @@ make_rand_coprime(uint32_t *x, uint32_t esize, uint32_t *y, uint32_t *tmp)
 }
 
 
-void init_temp_rsa_key(temp_rsa_key_t *temp, const br_rsa_private_key *sk) {
-    // Set up pointers for temporary key
-    temp->key.r1 = temp->r1;
-    temp->key.r2 = temp->r2;
-    temp->key.n  = temp->n_buf;
-    temp->key.p  = temp->p_buf;
-    temp->key.q  = temp->q_buf;
-    temp->key.dp = temp->dp_buf;
-    temp->key.dq = temp->dq_buf;
-    temp->key.iq = temp->iq_buf;
-    temp->key.phi_p = temp->phi_p;
-    temp->key.phi_q = temp->phi_q;
-    temp->key.e  = temp->e_buf;
 
-    // Copy key components from the original key (sk)
-    temp->key.n_bitlen = sk->n_bitlen;
-    memcpy(temp->key.n, sk->n, (sk->n_bitlen + 7) >> 3);
-    memcpy(temp->key.e, sk->e, sk->elen);
-    temp->key.elen = sk->elen;
-    memcpy(temp->key.p, sk->p, sk->plen);
-    temp->key.plen = sk->plen;
-    memcpy(temp->key.q, sk->q, sk->qlen);
-    temp->key.qlen = sk->qlen;
-    memcpy(temp->key.iq, sk->iq, sk->iqlen);
-    temp->key.iqlen = sk->iqlen;
-    memcpy(temp->key.dp, sk->dp, sk->dplen);
-    temp->key.dplen = sk->dplen;
-    memcpy(temp->key.dq, sk->dq, sk->dqlen);
-    temp->key.dqlen = sk->dqlen;
-
-    memcpy(temp->key.r1 + 1, sk->r1 + 1, (sk->r1[0] + 7) >> 3);
-    temp->key.r1[0] = sk->r1[0];
-
-    memcpy(temp->key.r2 + 1, sk->r2 + 1, (sk->r2[0] + 7) >> 3);
-    temp->key.r2[0] = sk->r2[0];
-
-    memcpy(temp->key.phi_p + 1, sk->phi_p + 1, (sk->phi_p[0] + 7) >> 3);
-    temp->key.phi_p[0] = sk->phi_p[0];
-
-    memcpy(temp->key.phi_q + 1, sk->phi_q + 1, (sk->phi_q[0] + 7) >> 3);
-    temp->key.phi_q[0] = sk->phi_q[0];
-
-}
 
 size_t blind_exponent(unsigned char * x, const unsigned char* d, const size_t size, uint32_t * m, uint32_t * t1){
 
@@ -132,7 +97,49 @@ static void create_mask(uint32_t * dest, uint32_t * m,uint32_t *op1,uint32_t * o
         dest[0] = br_i31_bit_length(dest + 1, (dest[0] + 31) >> 5);
 }
 
+void init_temp_rsa_key(temp_rsa_key_t *temp, const br_rsa_private_key *sk) {
+    // Set up pointers for temporary key
+    temp->key.r1 = temp->r1;
+    temp->key.r2 = temp->r2;
+    temp->key.n  = temp->n_buf;
+    temp->key.p  = temp->p_buf;
+    temp->key.q  = temp->q_buf;
+    temp->key.dp = temp->dp_buf;
+    temp->key.dq = temp->dq_buf;
+    temp->key.iq = temp->iq_buf;
+    temp->key.phi_p = temp->phi_p;
+    temp->key.phi_q = temp->phi_q;
+    temp->key.e  = temp->e_buf;
 
+    // Copy key components from the original key (sk)
+    temp->key.n_bitlen = sk->n_bitlen;
+    memcpy(temp->key.n, sk->n, (sk->n_bitlen + 7) >> 3);
+    memcpy(temp->key.e, sk->e, sk->elen);
+    temp->key.elen = sk->elen;
+    memcpy(temp->key.p, sk->p, sk->plen);
+    temp->key.plen = sk->plen;
+    memcpy(temp->key.q, sk->q, sk->qlen);
+    temp->key.qlen = sk->qlen;
+    memcpy(temp->key.iq, sk->iq, sk->iqlen);
+    temp->key.iqlen = sk->iqlen;
+    memcpy(temp->key.dp, sk->dp, sk->dplen);
+    temp->key.dplen = sk->dplen;
+    memcpy(temp->key.dq, sk->dq, sk->dqlen);
+    temp->key.dqlen = sk->dqlen;
+
+    memcpy(temp->key.r1 + 1, sk->r1 + 1, (sk->r1[0] + 7) >> 3);
+    temp->key.r1[0] = sk->r1[0];
+
+    memcpy(temp->key.r2 + 1, sk->r2 + 1, (sk->r2[0] + 7) >> 3);
+    temp->key.r2[0] = sk->r2[0];
+
+    memcpy(temp->key.phi_p + 1, sk->phi_p + 1, (sk->phi_p[0] + 7) >> 3);
+    temp->key.phi_p[0] = sk->phi_p[0];
+
+    memcpy(temp->key.phi_q + 1, sk->phi_q + 1, (sk->phi_q[0] + 7) >> 3);
+    temp->key.phi_q[0] = sk->phi_q[0];
+
+}
 
 void br_i31_init_key(  const br_rsa_private_key *sk, br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwlen){
 

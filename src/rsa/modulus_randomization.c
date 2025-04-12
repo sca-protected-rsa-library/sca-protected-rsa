@@ -34,7 +34,7 @@
 
 /* see bearssl_rsa.h */
 uint32_t
-br_rsa_i31_private_mod_rand(unsigned char *x, const br_rsa_private_key *sk)
+br_rsa_i31_private_blind_mod(unsigned char *x, const br_rsa_private_key *sk)
 {
 	const unsigned char *p, *q;
 	size_t plen, qlen;

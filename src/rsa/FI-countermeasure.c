@@ -32,7 +32,7 @@
 
 /* see bearssl_rsa.h */
 uint32_t
-br_rsa_i31_private_FI(unsigned char *x, const br_rsa_private_key *sk)
+br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *sk)
 {
 	const unsigned char *p, *q;
         size_t plen, qlen;
@@ -337,7 +337,7 @@ br_rsa_i31_private_FI(unsigned char *x, const br_rsa_private_key *sk)
         memcpy(t2 + 1, t1 + 1, (t1[0] + 7 >> 3));
         t2[0] = t1[0];
         
-        br_i31_modpow_opt_rand(&rng.vtable, t2, rsa_sk.key.e, rsa_sk.key.elen, n, br_i31_ninv31(n[1]),
+        br_i31_modpow_opt(t2, rsa_sk.key.e, rsa_sk.key.elen, n, br_i31_ninv31(n[1]),
                 tmp + 8 * fwlen, TLEN - 8 * fwlen);      
 
         unsigned char * c_verif = (unsigned char *) n;
