@@ -50,6 +50,42 @@ static void cummult(const uint32_t * orig_m, uint32_t * rand_m, uint32_t* tmp, u
 			rand_m[0] = br_i31_bit_length(rand_m + 1 , (rand_m[0] + 31) >> 5);
 		}
 }
+
+
+void cswap(uint32_t * in1, uint32_t* in2, uint32_t mask, size_t mwlen) {
+  	uint32_t ctr;
+
+	for (ctr = 0; ctr < mwlen; ctr++) {
+    	uint32_t val1 = in1[ctr];
+    	uint32_t val2 = in2[ctr];
+    	uint32_t temp = val1;
+
+    	val1 ^= mask & (val2 ^ val1);
+    	val2 ^= mask & (val2 ^ temp);
+
+    	in1[ctr] = val1;
+    	in2[ctr] = val2;
+    }
+}
+
+
+void rand_swap(int offset, int winlen, size_t mwlen, uint32_t* base){
+	int j = offset;
+	uint32_t * left = base;
+	uint32_t * right;
+	int size = (1<<winlen);
+
+    for (int i = 0; i < size - 2; i++){        
+	    for (int u = 0; u < size - 1; u++){
+	        right = (base + (u*mwlen));
+            cswap(left, right, -EQ(j, u), mwlen); 
+        }        
+		
+		j += offset;
+	    j %= (size - 1);
+	}  
+}
+
 /* see inner.h */
 uint32_t
 br_i31_modpow_opt_rand(uint32_t *x,
@@ -156,6 +192,10 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		}
 	}
 
+	make_rand(new_r, 32 );
+	uint32_t perm_rand = new_r[1] % ((1<<win_len)  -1);
+	rand_swap(perm_rand, win_len, mwlen, t2 + mwlen);
+
 	br_i31_zero(curr_m, prev_bitlen);
 	br_i31_mulacc(curr_m, m, r);
 	curr_m[0] = br_i31_bit_length(curr_m + 1 , (curr_m[0] + 31) >> 5);
@@ -223,14 +263,18 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		if (win_len > 1) {
 			br_i31_zero(t2, curr_m[0]);
 			base = t2 + mwlen;
+			int offset = perm_rand;
+			uint32_t * perm_base = base + (offset * mwlen);
 			for (u = 1; u < ((uint32_t)1 << k); u ++) {
 				uint32_t mask;
-
 				mask = -EQ(u, bits);
 				for (v = 1; v < mwlen; v ++) {
-					t2[v] |= mask & base[v];
+					t2[v] |= mask & perm_base[v];
 				}
-				base += mwlen;
+				
+				offset += 1;
+				offset %=  (1<<win_len) - 1;
+				perm_base = base + (offset * mwlen);
 			}
 		}
 
@@ -239,8 +283,16 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		 * product only if the exponent bits are not all-zero.
 		 */
 
+		
 		br_i31_montymul(t1, x, t2, curr_m, m0i);
 		CCOPY(NEQ(bits, 0), x, t1, mlen);
+
+
+		make_rand(new_r, 32 );
+		new_r[1] %= ((1<<win_len) - 1);
+	 	perm_rand += new_r[1];
+	 	perm_rand %= ((1<<win_len) - 1);
+		rand_swap(new_r[1], win_len, mwlen, t2 + mwlen);
 		
 	}
 
