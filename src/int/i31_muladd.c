@@ -28,108 +28,121 @@
 void
 br_i31_muladd_small(uint32_t *x, uint32_t z, const uint32_t *m)
 {
-	uint32_t m_bitlen;
-	unsigned mblr;
-	size_t u, mlen;
+	uint32_t ann_bitlen, real_bitlen;
+	unsigned real_mblr;
+	size_t u, mlen_ann, mlen_real, top;
 	uint32_t a0, a1, b0, hi, g, q, tb;
 	uint32_t under, over;
 	uint32_t cc;
 
 	/*
-	 * We can test on the modulus bit length since we accept to
-	 * leak that length.
+	 * m[0] now contains the *announced* bit length.
+	 * Time will depend on this value (loop bounds, memmove size).
 	 */
-	m_bitlen = m[0];
-	if (m_bitlen == 0) {
+	ann_bitlen = m[0];
+	if (ann_bitlen == 0) {
 		return;
 	}
-	if (m_bitlen <= 31) {
+	/* Announced length controls the work (runtime). */
+	mlen_ann = (ann_bitlen + 31) >> 5;
+	/*
+	 * Real bit-length is recomputed from the value; it may be
+	 * <= announced bit-length. We use it only to locate the
+	 * actual top word of the modulus for the quotient estimate.
+	 */
+	real_bitlen = br_i31_bit_length(m + 1, mlen_ann);
+	if (real_bitlen == 0) {
+		/* Degenerate modulus; nothing sensible to do. */
+		return;
+	}
+
+	/*
+	 * Small-modulus special case: keep this branch dependent on
+	 * the *announced* bit-length, to keep timing tied to it.
+	 * If real_bitlen <= 31 but ann_bitlen > 31, we harmlessly
+	 * fall back to the generic path (still correct, just slower).
+	 */
+	if (ann_bitlen <= 31) {
 		uint32_t lo;
 
 		hi = x[1] >> 1;
 		lo = (x[1] << 31) | z;
+		/* For the math we still use the actual modulus word m[1]. */
 		x[1] = br_rem(hi, lo, m[1]);
 		return;
 	}
-	mlen = (m_bitlen + 31) >> 5;
-	mblr = (unsigned)m_bitlen & 31;
+
+
+
+	/* Real length controls where the *real* top word is. */
+	mlen_real = (real_bitlen + 31) >> 5;
+	real_mblr = (unsigned)real_bitlen & 31;
 
 	/*
-	 * Principle: we estimate the quotient (x*2^31+z)/m by
-	 * doing a 64/32 division with the high words.
-	 *
-	 * Let:
-	 *   w = 2^31
-	 *   a = (w*a0 + a1) * w^N + a2
-	 *   b = b0 * w^N + b2
-	 * such that:
-	 *   0 <= a0 < w
-	 *   0 <= a1 < w
-	 *   0 <= a2 < w^N
-	 *   w/2 <= b0 < w
-	 *   0 <= b2 < w^N
-	 *   a < w*b
-	 * I.e. the two top words of a are a0:a1, the top word of b is
-	 * b0, we ensured that b0 is "full" (high bit set), and a is
-	 * such that the quotient q = a/b fits on one word (0 <= q < w).
-	 *
-	 * If a = b*q + r (with 0 <= r < q), we can estimate q by
-	 * doing an Euclidean division on the top words:
-	 *   a0*w+a1 = b0*u + v  (with 0 <= v < b0)
-	 * Then the following holds:
-	 *   0 <= u <= w
-	 *   u-2 <= q <= u
+	 * Top word index of the *real* modulus (1-based, i31 format).
+	 * We assume real_bitlen > 31 here, so mlen_real >= 2.
 	 */
-	hi = x[mlen];
-	if (mblr == 0) {
-		a0 = x[mlen];
-		memmove(x + 2, x + 1, (mlen - 1) * sizeof *x);
+	top = mlen_real;
+
+	/*
+	 * hi is taken at the announced length, so that the data
+	 * movement and comparisons later run up to mlen_ann and
+	 * timing matches the announced size.
+	 */
+	hi = x[mlen_ann];
+
+	/*
+	 * Build a0, a1 and b0 from the *real* top words, but perform
+	 * the memmove with the announced length (constant-time in the
+	 * announced bit-length).
+	 */
+	if (real_mblr == 0) {
+		/*
+		 * Modulus is word-aligned in i31 representation.
+		 * Top real word is at index "top".
+		 */
+		a0 = x[top];
+		memmove(x + 2, x + 1, (mlen_ann - 1) * sizeof *x);
 		x[1] = z;
-		a1 = x[mlen];
-		b0 = m[mlen];
+		a1 = x[top];
+		b0 = m[top];
 	} else {
-		a0 = ((x[mlen] << (31 - mblr)) | (x[mlen - 1] >> mblr))
-			& 0x7FFFFFFF;
-		memmove(x + 2, x + 1, (mlen - 1) * sizeof *x);
+		/*
+		 * Top real 31-bit chunk is formed from words "top" and "top-1".
+		 * Note: since real_bitlen > 31, we know top >= 2.
+		 */
+		a0 = ((x[top] << (31 - real_mblr))
+			| (x[top - 1] >> real_mblr)) & 0x7FFFFFFF;
+		memmove(x + 2, x + 1, (mlen_ann - 1) * sizeof *x);
 		x[1] = z;
-		a1 = ((x[mlen] << (31 - mblr)) | (x[mlen - 1] >> mblr))
-			& 0x7FFFFFFF;
-		b0 = ((m[mlen] << (31 - mblr)) | (m[mlen - 1] >> mblr))
-			& 0x7FFFFFFF;
+		a1 = ((x[top] << (31 - real_mblr))
+			| (x[top - 1] >> real_mblr)) & 0x7FFFFFFF;
+		b0 = ((m[top] << (31 - real_mblr))
+			| (m[top - 1] >> real_mblr)) & 0x7FFFFFFF;
 	}
 
 	/*
-	 * We estimate a divisor q. If the quotient returned by br_div()
-	 * is g:
-	 * -- If a0 == b0 then g == 0; we want q = 0x7FFFFFFF.
-	 * -- Otherwise:
-	 *    -- if g == 0 then we set q = 0;
-	 *    -- otherwise, we set q = g - 1.
-	 * The properties described above then ensure that the true
-	 * quotient is q-1, q or q+1.
-	 *
-	 * Take care that a0, a1 and b0 are 31-bit words, not 32-bit. We
-	 * must adjust the parameters to br_div() accordingly.
+	 * Quotient estimate as in the original code, but now built from
+	 * (a0,a1,b0) computed with the real bit-length.
 	 */
 	g = br_div(a0 >> 1, a1 | (a0 << 31), b0);
 	q = MUX(EQ(a0, b0), 0x7FFFFFFF, MUX(EQ(g, 0), 0, g - 1));
 
 	/*
-	 * We subtract q*m from x (with the extra high word of value 'hi').
-	 * Since q may be off by 1 (in either direction), we may have to
-	 * add or subtract m afterwards.
+	 * Subtract q*m from x.
 	 *
-	 * The 'tb' flag will be true (1) at the end of the loop if the
-	 * result is greater than or equal to the modulus (not counting
-	 * 'hi' or the carry).
+	 * The loop bound is mlen_ann (announced length) so that the
+	 * runtime is tied to the announced bit-length. You must ensure
+	 * that m[1..mlen_ann] is valid and zero-padded above the real
+	 * top word.
 	 */
 	cc = 0;
 	tb = 1;
-	for (u = 1; u <= mlen; u ++) {
+	for (u = 1; u <= mlen_ann; u ++) {
 		uint32_t mw, zw, xw, nxw;
 		uint64_t zl;
 
-		mw = m[u];
+		mw = m[u];      
 		zl = MUL31(mw, q) + cc;
 		cc = (uint32_t)(zl >> 31);
 		zw = (uint32_t)zl & (uint32_t)0x7FFFFFFF;
@@ -142,13 +155,9 @@ br_i31_muladd_small(uint32_t *x, uint32_t z, const uint32_t *m)
 	}
 
 	/*
-	 * If we underestimated q, then either cc < hi (one extra bit
-	 * beyond the top array word), or cc == hi and tb is true (no
-	 * extra bit, but the result is not lower than the modulus). In
-	 * these cases we must subtract m once.
-	 *
-	 * Otherwise, we may have overestimated, which will show as
-	 * cc > hi (thus a negative result). Correction is adding m once.
+	 * Final correction (same logic as original), but note that
+	 * "hi" came from x[mlen_ann], so the comparisons also scale
+	 * with the announced size.
 	 */
 	over = GT(cc, hi);
 	under = ~over & (tb | LT(cc, hi));

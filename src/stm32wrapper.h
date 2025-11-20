@@ -10,7 +10,6 @@
 #include <libopencm3/stm32/rcc.h>
 #include <libopencm3/stm32/rng.h>
 #include <libopencm3/stm32/usart.h>
-
 void clock_setup(void);
 void gpio_setup(void);
 void usart_setup(int baud);
