@@ -94,15 +94,9 @@ br_rsa_i31_private_blind_mod_key(unsigned char *x, const br_rsa_private_key *sk)
     
   
         mq = tmp;
-        
-    
-        // Assume tmp and fwlen are defined appropriately.
         temp_rsa_key_t rsa_sk;
-    
-        // Initialize the temporary RSA key with the original (const) key data.
-        init_temp_rsa_key(&rsa_sk, sk);
 
-        // Perform key update (re-randomization) using the temporary key.
+        init_temp_rsa_key(&rsa_sk, sk);
         br_i31_update_key(&rsa_sk.key, tmp, fwlen);
        
     

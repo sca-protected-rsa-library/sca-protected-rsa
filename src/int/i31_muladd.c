@@ -142,7 +142,7 @@ br_i31_muladd_small(uint32_t *x, uint32_t z, const uint32_t *m)
 		uint32_t mw, zw, xw, nxw;
 		uint64_t zl;
 
-		mw = m[u];      
+		mw = m[u];      /* For u > mlen_real this should be 0. */
 		zl = MUL31(mw, q) + cc;
 		cc = (uint32_t)(zl >> 31);
 		zw = (uint32_t)zl & (uint32_t)0x7FFFFFFF;

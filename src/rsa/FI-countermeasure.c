@@ -26,7 +26,7 @@
 #include "bearssl.h"
 #include "inner.h"
 #define U      (2 + ((BR_MAX_RSA_FACTOR + 30) / 31))
-#define TLEN   (24 * U)
+#define TLEN   (50 * U)
 
 
 
@@ -44,8 +44,8 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
         uint32_t *mp, *mq, *s1, *s2, *t1, *t2, *t3;
         uint32_t r;
 
+        memset(tmp, 0, sizeof tmp);
         
-
         /*
          * Compute the actual lengths of p and q, in bytes.
          * These lengths are not considered secret (we cannot really hide
@@ -96,22 +96,22 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
         
         
         // Initialize the temporary RSA key with the original (const) key data.
-
-    
+       
+        
+        uint32_t r1[(BR_RSA_RAND_FACTOR + 63) >> 5];
+        memset(r1, 0, sizeof r1);
+        make_rand(r1, BR_RSA_RAND_FACTOR);
+        r1[1] |= 1;
+        r1[0] = br_i31_bit_length(r1 + 1, (BR_RSA_RAND_FACTOR + 31) >> 5);
+       
+       
         init_temp_rsa_key(&rsa_sk, sk);
-        //br_i31_init_key(sk, &rsa_sk.key, tmp, fwlen);
         br_i31_update_key(&rsa_sk.key, tmp, fwlen);
         
         
 
 
-
-        uint32_t r1[(BR_RSA_RAND_FACTOR + 63) >> 5];
-        make_rand( r1, BR_RSA_RAND_FACTOR);
-        r1[1] |= 1;
-        r1[0] = br_i31_bit_length(r1 + 1, (BR_RSA_RAND_FACTOR + 31) >> 5);
-       
-
+        
         /*
          * Decode q.
          */
@@ -161,6 +161,7 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
         
         
         uint32_t *n = t2;
+        br_i31_zero(n, (rsa_sk.key.n_bitlen + 7) >> 3);
         br_i31_decode(n, rsa_sk.key.n, (rsa_sk.key.n_bitlen + 7) >> 3);
         uint32_t *c = t3;
         uint32_t *c_prime = mq + 6 * fwlen;
@@ -168,19 +169,17 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
         
         br_i31_zero(c, n[0]);
         br_i31_decode_reduce(c, x, xlen, n);
-
-
         br_i31_zero(r_to_e, n[0]);
         memcpy(r_to_e + 1, r1 + 1,  ((BR_RSA_RAND_FACTOR + 7) >> 3));
         r_to_e[0] = n[0];
 
-
         r &= br_i31_modpow_opt(r_to_e, rsa_sk.key.e, rsa_sk.key.elen, n,  br_i31_ninv31(n[1]), mq + 8 * fwlen, TLEN - 8 * fwlen);
 
         br_i31_zero(c_prime, n[0]);
+
         c[0] = c_prime[0];
+
         br_i31_mulacc(c_prime, c, r_to_e);
-        
         mq = tmp + 4 * fwlen;
         mp = tmp + 5 * fwlen;
 
@@ -188,20 +187,21 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
         br_i31_decode(mp,  rsa_sk.key.p,  rsa_sk.key.plen);
         mp[0] = rsa_sk.key.plen << 3;
         mq[0] = rsa_sk.key.qlen << 3;
-        rsa_sk.r1[0] = BR_RSA_RAND_FACTOR;
-        rsa_sk.r2[0] = BR_RSA_RAND_FACTOR;
         s2 = tmp;
         s1 = tmp + fwlen;
+
+        br_i31_zero(s1, rsa_sk.key.plen << 3);
+        br_i31_zero(s2, rsa_sk.key.qlen << 3);
         /*
          * store C' = r^e * C in s1 (mod p)
          * store C' = r^e * C in s2 (mod q)
          */
-
-
+           
         
         br_i31_reduce(s1, c_prime, mp);
         br_i31_reduce(s2, c_prime, mq);
         
+       
 
         
         /*
@@ -210,32 +210,31 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
 
         
         unsigned char* dq = (unsigned char *) (tmp + 6 *fwlen); 
-        size_t dqlen = blind_exponent( dq, rsa_sk.key.dq, rsa_sk.key.dqlen, rsa_sk.key.phi_q, tmp + 7 * fwlen);
+        size_t dqlen = blind_exponent(dq, rsa_sk.key.dq, rsa_sk.key.dqlen, rsa_sk.key.phi_q, tmp + 7 * fwlen);
         uint32_t * s2_prime = tmp + 2 * fwlen;
         br_i31_zero(s2_prime, mq[0]);
         br_i31_reduce(s2_prime, s2, rsa_sk.key.r2);
         
-        
+       
         /*
          * Compute s2 = x^dq mod q.
          */
         q0i = br_i31_ninv31(mq[1]);
-        r &= br_i31_modpow_opt_rand2(rsa_sk.key.n_bitlen, s2, dq, dqlen, mq, q0i,
+        r &= br_i31_modpow_opt_rand(s2, dq, dqlen, mq, q0i,
                 tmp + 7 * fwlen, TLEN - 7 * fwlen);
+       
         
-
          /*
          * Compute s2' = x^dq mod r2.
          */
-
+         
         uint32_t r20i = br_i31_ninv31(rsa_sk.key.r2[1]);
 
-        r &= br_i31_modpow_opt_rand2(rsa_sk.key.n_bitlen, s2_prime, dq, dqlen, rsa_sk.key.r2, r20i,
+        r &= br_i31_modpow_opt_rand( s2_prime, dq, dqlen, rsa_sk.key.r2, r20i,
                 tmp + 7 * fwlen, TLEN - 7 * fwlen);
+        
+        
 
-       // sprintf(str, "Cost of br_i31_modpow_opt_rand2: %d", DWT_CYCCNT - oldcount);
-       // send_USART_str((unsigned char*)str);
-       // return 1;
         /*
          * Compute s1 = x^dp mod p.
          */
@@ -253,20 +252,20 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
         p0i = br_i31_ninv31(mp[1]);
         
        
-        r &= br_i31_modpow_opt_rand2(rsa_sk.key.n_bitlen, s1, dp, dplen, mp, p0i,
+        r &= br_i31_modpow_opt_rand( s1, dp, dplen, mp, p0i,
                 tmp + 7 * fwlen, TLEN - 7 * fwlen);
-        
+                    
          /*
          * Compute s1' = x^dp mod r1.
          */
 
         uint32_t r10i = br_i31_ninv31(rsa_sk.key.r1[1]);
+       
 
-        r &= br_i31_modpow_opt_rand2(rsa_sk.key.n_bitlen, s1_prime, dp, dplen, rsa_sk.key.r1, r10i,
+        r &= br_i31_modpow_opt_rand( s1_prime, dp, dplen, rsa_sk.key.r1, r10i,
                 tmp + 7 * fwlen, TLEN - 7 * fwlen);
-
-       // sprintf(str, "Cost of br_i31_modpow_opt_rand2: %d", DWT_CYCCNT - oldcount);
-       // send_USART_str((unsigned char*)str);
+  
+        
                 /*
          * Compute:
          *   h = (s1 - s2)*(1/q) mod p
@@ -281,19 +280,14 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
          * values for this parameter.
          */
 
-
         t1 = tmp + 6 * fwlen;
         t2 = tmp + 8 * fwlen;
-        t3[0] = br_i31_bit_length(t3 + 1, (t3[0] + 31) >> 5);
-        mp[0] = br_i31_bit_length(mp + 1, (mp[0] + 31) >> 5);
-        mq[0] = br_i31_bit_length(mq + 1, (mq[0] + 31) >> 5);
         br_i31_reduce(t2, s2, mp); 
         br_i31_add(s1, mp, br_i31_sub(s1, t2, 1));
         br_i31_to_monty(s1, mp);
-      
         br_i31_decode_reduce(t1, rsa_sk.key.iq, rsa_sk.key.iqlen, mp);
         br_i31_montymul(t2, s1, t1, mp, p0i);
-        
+       
         /*
          * h is now in t2. We compute the final result:
          *   s = s2 + q*h
@@ -309,57 +303,71 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
         t3 = s2;
         br_i31_mulacc(t3, mq, t2);
         
+       /*
+         * Reduce s mod r1
+         * Reduce s mod r2
+         *
+         * substract x^dp mod r1 - s mod r1
+         * substract x^dq mod r1 - s mod r2
+         *
+         * both substraction should result in zero
+         * add theese two result and add this to mask used to blind message
+         *
+         * if fault was inserted then removing mask from message will result in random result
+         */
 
         uint32_t * s_r2 = mq;
         uint32_t * s_r1 = mp;
 
         br_i31_reduce(s_r2, t3, rsa_sk.key.r2);
         br_i31_reduce(s_r1, t3, rsa_sk.key.r1);
+      
 
         br_i31_sub(s_r2, s2_prime, 1);
         br_i31_sub(s_r1, s1_prime, 1);
 
         br_i31_add(s_r1, s_r2, 1);
         br_i31_add(r1, s_r1, 1);
-       
+
+        /*
+         * compute inversion of mask used for message blinding multiply result
+         */
+
         t1 = tmp + 4 * fwlen;
         br_i31_decode(n, rsa_sk.key.n, (rsa_sk.key.n_bitlen + 7) >> 3);
         br_i31_zero(t1, n[0]);
         br_i31_reduce(t1, t3, n); 
-        
-
-        
 
         t2 = tmp + 6 * fwlen;
         br_i31_zero(t2, n[0]);
         memcpy(t2 + 1, r1 + 1, (*r1 + 7) >> 3);
         t2[0] = n[0];
         t1[0] = n[0];
-        
+       
         r &= br_i31_moddiv(t1, t2, n, br_i31_ninv31(n[1]), tmp + 8 * fwlen);
-        
         /*
-         * Encode the result. Since we already checked the value of xlen,
-         * we can just use it right away.
+         * Check wheter s^e = x mod n
          */
-        
+
         br_i31_zero(t2, n[0]);
-        memcpy(t2 + 1, t1 + 1, (t1[0] + 7 >> 3));
+        memcpy(t2 + 1, t1 + 1, (n[0] + 7 >> 3));
         t2[0] = t1[0];
-        
-        br_i31_modpow_opt(t2, rsa_sk.key.e, rsa_sk.key.elen, n, br_i31_ninv31(n[1]),
+         
+        br_i31_modpow_opt( t2, rsa_sk.key.e, rsa_sk.key.elen, n, br_i31_ninv31(n[1]),
                 tmp + 8 * fwlen, TLEN - 8 * fwlen);      
 
         unsigned char * c_verif = (unsigned char *) n;
         br_i31_encode(c_verif, xlen, t2);
-        uint32_t mask = 0xFFFFFFFF;
+        unsigned char mask = 0xFF;
         for( int i = 0; i < xlen; ++i){
                mask &= -EQ(c_verif[i],x[i]);
         }
-        for( int i = 0; i < xlen; ++i){
-                t1[i] &= mask;
-        }
         br_i31_encode(x, xlen, t1);
+        // Zero output if verification failed
+        for( int i = 0; i < xlen; ++i){
+            x[i] &= mask;
+        }
+
 
 
         /*
