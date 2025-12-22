@@ -230,7 +230,7 @@ typedef struct {
 } br_rsa_private_key;
 
 #define BR_MAX_RSA_SIZE   4096
-#define BR_RSA_RAND_FACTOR 62
+#define BR_RSA_RAND_FACTOR 64
 
 /**
  * @brief Composite structure for a temporary RSA key and its associated buffers.
@@ -257,8 +257,7 @@ typedef struct {
  */
 typedef struct {
     br_rsa_private_key key;
-    uint32_t r2[(BR_RSA_RAND_FACTOR + 63) >> 5];
-    uint32_t r3[(BR_RSA_RAND_FACTOR + 63) >> 5];
+    uint32_t r2[(4*BR_RSA_RAND_FACTOR + 63) >> 5];
     uint32_t phi_p[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR + 63) >> 5];
     uint32_t phi_q[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR + 63) >> 5];
     unsigned char n_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
@@ -268,7 +267,7 @@ typedef struct {
     unsigned char dq_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
     unsigned char iq_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
     unsigned char e_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
-    uint32_t r1[(BR_RSA_RAND_FACTOR + 63) >> 5];
+    uint32_t r1[(4*BR_RSA_RAND_FACTOR + 63) >> 5];
 } temp_rsa_key_t;
 
 

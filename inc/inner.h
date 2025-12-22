@@ -76,8 +76,7 @@
 /*
  * Bit len of random number used as mask
  */
-#define BR_RSA_RAND_FACTOR 62
-
+#define BR_RSA_RAND_FACTOR 64
 
 
 /* ==================================================================== */
@@ -833,7 +832,6 @@ void br_i31_montymul(uint32_t *d, const uint32_t *x, const uint32_t *y,
  * MUST be lower than m[], but with the same announced bit length.
  */
 void br_i31_to_monty(uint32_t *x, const uint32_t *m);
-
 /*
  * Convert a modular integer back from Montgomery representation. The
  * integer x[] MUST be lower than m[], but with the same announced bit
@@ -899,10 +897,7 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	const unsigned char *e, size_t elen,
 	const uint32_t *m, uint32_t m0i, uint32_t *tmp, size_t twlen);
 
-uint32_t
-br_i31_modpow_opt_rand2(uint32_t n_size, uint32_t *x,
-	const unsigned char *e, size_t elen,
-	const uint32_t *m, uint32_t m0i, uint32_t *tmp, size_t twlen);
+
 /*
  * Compute d+a*b, result in d. The initial announced bit length of d[]
  * MUST match that of a[]. The d[] array MUST be large enough to
