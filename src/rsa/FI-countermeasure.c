@@ -123,13 +123,7 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
          */
         
         t1 = mq + fwlen;
-        
-        /*
-         * Compute the modulus (product of the two factors), to compare
-         * it with the source value. We use br_i31_mulacc(), since it's
-         * already used later on.
-         */
-        
+                
         t2 = mq + 2 * fwlen;
         br_i31_zero(t2, mq[0]);
         br_i31_decode(t2, rsa_sk.key.n, (rsa_sk.key.n_bitlen + 7) >> 3);
@@ -358,17 +352,17 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
 
         unsigned char * c_verif = (unsigned char *) n;
         br_i31_encode(c_verif, xlen, t2);
-        unsigned char mask = 0xFF;
+        uint32_t mask = 0xFFFFFFFF;
         for( int i = 0; i < xlen; ++i){
                mask &= -EQ(c_verif[i],x[i]);
         }
-        br_i31_encode(x, xlen, t1);
+        
         // Zero output if verification failed
-        for( int i = 0; i < xlen; ++i){
-            x[i] &= mask;
+        for( int i = 0; i < xlen ; ++i){
+            t1[i] &= mask;
         }
 
-
+        br_i31_encode(x, xlen, t1);
 
         /*
          * The only error conditions remaining at that point are invalid
