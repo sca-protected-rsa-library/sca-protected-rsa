@@ -27,7 +27,7 @@
 #include "stm32wrapper.h"
 #define U2      (4 + ((BR_MAX_RSA_FACTOR + 30) / 31))
 #define TLEN_TMP   (6 * U2)
-
+#define ROTATE (1 << (3))
 
 
 /*
@@ -314,7 +314,7 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		
 		br_i31_montymul(t1, x, t2, curr_m, m0i);
 		CCOPY(NEQ(bits, 0), x, t1, mlen);
-		if (++swap_count == (1 << (win_len - 1))){
+		if (++swap_count == ROTATE){
 			make_rand( new_r, 32 );
 			uint32_t r1 = reduce(new_r[1], win_len);
 		 	perm_rand += r1;
