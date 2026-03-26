@@ -210,7 +210,7 @@ void sort15(uint32_t *arr, uint32_t *idxs, uint32_t *vals, size_t mwlen) {
  * raised to the power N is negligible.
  */
 static uint32_t
-sample_uniform_ct(const br_prng_class **rng, uint32_t i, int N)
+sample_uniform_ct(uint32_t i, int N)
 {
     /* k' = number of bits needed: smallest k' s.t. 2^k' > i */
     uint32_t kp = 0;
@@ -221,7 +221,7 @@ sample_uniform_ct(const br_prng_class **rng, uint32_t i, int N)
     uint32_t r = 0;
     for (int n = 0; n < N; n++) {
         uint32_t x;
-        (*rng)->generate(rng, &x, sizeof(x));
+        make_rand(&x, 32);
         x &= mask;
         /* r = (i > x) ? x : r, constant-time via MUX */
         r = MUX(GT(i, x), x, r);
@@ -239,10 +239,10 @@ sample_uniform_ct(const br_prng_class **rng, uint32_t i, int N)
  * element so no data-dependent memory access pattern is visible.
  */
 static void
-fisher_yates_ct(const br_prng_class **rng, int *arr, int n)
+fisher_yates_ct(uint32_t *arr, int n)
 {
     for (int i = n - 1; i >= 1; i--) {
-        uint32_t j = sample_uniform_ct(rng, (uint32_t)(i + 1), 1);
+        uint32_t j = sample_uniform_ct((uint32_t)(i + 1), 1);
         for (int k = 0; k <= i; k++) {
             /* swap arr[i] and arr[k] iff k == j, constant-time */
             int t = (arr[i] ^ arr[k]) & -(int)EQ((uint32_t)k, j);
@@ -362,23 +362,36 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	}
 
 	
+	
+
 	uint32_t idxs[15]; 
+	uint32_t vals[15]; 
 	uint32_t num_elements = (1U << win_len) - 1;
 	base = t2 + mwlen;
-	
 
 	for (uint32_t i = 0; i < num_elements; i++) {
+		vals[i] = (i + 1);
 		idxs[i] = (i + 1);
 	}
-
-	make_rand(  new_r, 32 );
-
-	uint32_t perm_rand = reduce(new_r[1], win_len);
-
 	
-	//rand_swap(perm_rand, win_len, mwlen, t2 + mwlen);
-	rand_perm(perm_rand, -1, win_len, mwlen, idxs, t2 + mwlen);
 
+	//rand_perm(perm_rand, -1, win_len, mwlen, idxs, t2 + mwlen);
+	
+	fisher_yates_ct(idxs, num_elements);
+	
+	base = t2 + mwlen;
+	if(num_elements == 15){
+		sort15(base, idxs, vals, mwlen);
+	}
+
+	if(num_elements == 7){
+		sort7(base, idxs, vals, mwlen);
+	}
+
+	if(num_elements == 3){
+		sort3(base, idxs, vals, mwlen);
+	}
+	
 	br_i31_zero(curr_m, prev_bitlen);
 	br_i31_mulacc(curr_m, m, r);
 
@@ -463,7 +476,7 @@ br_i31_modpow_opt_rand(uint32_t *x,
 			uint32_t * perm_base = base + (offset * mwlen);
 			for (u = 1; u < ((uint32_t)1 << win_len); u ++) {
 				uint32_t mask;
-				mask = -EQ(idxs[u - 1], bits);
+				mask = -EQ(vals[u - 1], bits);
 				for (v = 1; v < mwlen; v ++) {
 					t2[v] |= mask & perm_base[v];
 				}
@@ -482,21 +495,33 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		
 		br_i31_montymul(t1, x, t2, curr_m, m0i);
 		CCOPY(NEQ(bits, 0), x, t1, mlen);
-		/*if ((++swap_count) == ROTATE){
-			make_rand( new_r, 32 );
-			uint32_t r1 = reduce(new_r[1], win_len);
-		 	perm_rand += r1;
-		 	perm_rand = reduce(perm_rand, win_len);
-			rand_swap(r1, win_len, mwlen, t2 + mwlen);
-			swap_count = 0;
-		}*/
-		if((++swap_count) == 4){
-			br_i31_montymul(t1, one, t2, curr_m, m0i);
-			CCOPY(NEQ(bits, 0), t2, t1, mlen);
+		
+		br_i31_montymul(t1, one, t2, curr_m, m0i);
+		CCOPY(NEQ(bits, 0), t2, t1, mlen);
+		base = t2 + mwlen;
+		for (u = 1; u < ((uint32_t)1 << win_len); u ++) {
+			CCOPY(EQ(bits, vals[u - 1]), base, t2, mlen);
+			base = base + mwlen;
+		}
+		base = t2 + mwlen;
+		//make_rand( rng, new_r, 32 );
+		//uint32_t r1 = reduce(new_r[1], win_len);
+		//rand_perm(r1, bits, win_len, mwlen, idxs, t2 + mwlen);
+		if (++swap_count == 1){
+			fisher_yates_ct(idxs, num_elements);
+		
+			base = t2 + mwlen;
+			if(num_elements == 15){
+				sort15(base, idxs, vals, mwlen);
+			}
 
-			make_rand( new_r, 32 );
-			uint32_t r1 = reduce(new_r[1], win_len);
-			rand_perm(r1, bits, win_len, mwlen, idxs, t2 + mwlen);
+			if(num_elements == 7){
+				sort7(base, idxs, vals, mwlen);
+			}
+
+			if(num_elements == 3){
+				sort3(base, idxs, vals, mwlen);
+			}
 			swap_count = 0;
 		}
 
