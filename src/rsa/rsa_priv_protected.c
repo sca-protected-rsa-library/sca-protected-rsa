@@ -26,7 +26,7 @@
 #include "bearssl.h"
 #include "inner.h"
 #define U      (2 + ((BR_MAX_RSA_FACTOR + 30) / 31))
-#define TLEN   (50 * U)
+#define TLEN   (44 * U)
 
 
 
@@ -68,7 +68,7 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
          * Compute the maximum factor length, in words.
          */
         z = (long)(plen > qlen ? plen : qlen) << 3;
-        fwlen =  1 + 18;
+        fwlen = 18;
         while (z > 0) {
                 z -= 31;
                 fwlen ++;
@@ -100,12 +100,14 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
         
         uint32_t r1[(BR_RSA_RAND_FACTOR + 63) >> 5];
         memset(r1, 0, sizeof r1);
-        make_rand(r1, BR_RSA_RAND_FACTOR);
+        make_rand(r1, BR_RSA_RAND_FACTOR); // 64
         r1[1] |= 1;
         r1[0] = br_i31_bit_length(r1 + 1, (BR_RSA_RAND_FACTOR + 31) >> 5);
        
        
         init_temp_rsa_key(&rsa_sk, sk);
+        //br_i31_init_key(sk, &rsa_sk.key, tmp, fwlen);
+
         br_i31_update_key(&rsa_sk.key, tmp, fwlen);
         
         
@@ -126,7 +128,7 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
                 
         t2 = mq + 2 * fwlen;
         br_i31_zero(t2, mq[0]);
-        br_i31_decode(t2, rsa_sk.key.n, (rsa_sk.key.n_bitlen + 7) >> 3);
+        br_i31_decode(t2, rsa_sk.key.n, (rsa_sk.key.n_bitlen + 7) >> 3); // 4096
         /*
          * We encode the modulus into bytes, to perform the comparison
          * with bytes. We know that the product length, in bytes, is
@@ -137,7 +139,7 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
          * accumulator for the error code.
          */
         t3 = mq + 4 * fwlen;
-        br_i31_encode(t3, xlen, t2);
+        br_i31_encode(t3, xlen, t2); // 2 * 4096
         u = xlen;
         r = 0;
         while (u > 0) {
@@ -162,18 +164,18 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
         uint32_t * r_to_e = mq; 
         
         br_i31_zero(c, n[0]);
-        br_i31_decode_reduce(c, x, xlen, n);
+        br_i31_decode_reduce(c, x, xlen, n); // 4096 * 2
         br_i31_zero(r_to_e, n[0]);
         memcpy(r_to_e + 1, r1 + 1,  ((BR_RSA_RAND_FACTOR + 7) >> 3));
         r_to_e[0] = n[0];
 
-        r &= br_i31_modpow_opt(r_to_e, rsa_sk.key.e, rsa_sk.key.elen, n,  br_i31_ninv31(n[1]), mq + 8 * fwlen, TLEN - 8 * fwlen);
+        r &= br_i31_modpow_opt(r_to_e, rsa_sk.key.e, rsa_sk.key.elen, n,  br_i31_ninv31(n[1]), mq + 8 * fwlen, TLEN - 8 * fwlen); // 4096 * 3 + 3 * 4096
 
         br_i31_zero(c_prime, n[0]);
 
         c[0] = c_prime[0];
 
-        br_i31_mulacc(c_prime, c, r_to_e);
+        br_i31_mulacc(c_prime, c, r_to_e); // 4096 * 4
         mq = tmp + 4 * fwlen;
         mp = tmp + 5 * fwlen;
 
@@ -259,7 +261,6 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
         r &= br_i31_modpow_opt_rand( s1_prime, dp, dplen, rsa_sk.key.r1, r10i,
                 tmp + 7 * fwlen, TLEN - 7 * fwlen);
   
-        
                 /*
          * Compute:
          *   h = (s1 - s2)*(1/q) mod p
@@ -275,13 +276,13 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
          */
 
         t1 = tmp + 6 * fwlen;
-        t2 = tmp + 8 * fwlen;
+        t2 = tmp + 7 * fwlen;
         br_i31_reduce(t2, s2, mp); 
         br_i31_add(s1, mp, br_i31_sub(s1, t2, 1));
         br_i31_to_monty(s1, mp);
         br_i31_decode_reduce(t1, rsa_sk.key.iq, rsa_sk.key.iqlen, mp);
         br_i31_montymul(t2, s1, t1, mp, p0i);
-       
+
         /*
          * h is now in t2. We compute the final result:
          *   s = s2 + q*h
@@ -296,7 +297,7 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
          */
         t3 = s2;
         br_i31_mulacc(t3, mq, t2);
-        
+
        /*
          * Reduce s mod r1
          * Reduce s mod r2
@@ -337,8 +338,9 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, const br_rsa_private_key *
         memcpy(t2 + 1, r1 + 1, (*r1 + 7) >> 3);
         t2[0] = n[0];
         t1[0] = n[0];
-       
+
         r &= br_i31_moddiv(t1, t2, n, br_i31_ninv31(n[1]), tmp + 8 * fwlen);
+
         /*
          * Check wheter s^e = x mod n
          */

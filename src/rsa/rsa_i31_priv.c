@@ -27,10 +27,8 @@
 #include "../stm32wrapper.h"
 
 #define U      (2 + ((BR_MAX_RSA_FACTOR + 30) / 31))
-#define TLEN   (24 * U)
+#define TLEN   (8 * U)
 
-#define U      (2 + ((BR_MAX_RSA_FACTOR + 30) / 31))
-#define TLEN   (24 * U)
 
 /* see bearssl_rsa.h */
 uint32_t

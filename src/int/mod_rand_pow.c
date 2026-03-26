@@ -26,7 +26,7 @@
 #include "inner.h"
 #include "stm32wrapper.h"
 #define U2      (4 + ((BR_MAX_RSA_FACTOR + 30) / 31))
-#define TLEN_TMP   (6 * U2)
+#define TLEN_TMP  (((BR_MAX_RSA_FACTOR + 2*BR_RSA_RAND_FACTOR + 93) / 31 + 7) & ~1u)
 #define ROTATE (1 << (3))
 
 
@@ -103,6 +103,156 @@ reduce(uint32_t x, int k)
 }
 
 
+void rand_perm(uint32_t idx, uint32_t update_idx, uint32_t winlen, size_t mwlen, uint32_t *idxs, uint32_t *base) {
+    uint32_t size = (1U << winlen) - 1;
+    uint32_t * left  = base;
+	uint32_t * right = left + mwlen;
+	uint32_t * new_val = base - mwlen;
+
+	
+    for (uint32_t i = 0; i < size -1; i++) {
+        // Create an all-ones mask if i == idx
+        uint32_t m_swap = -EQ(i, idx);
+		uint32_t m_update = -EQ(idxs[i], update_idx);
+        
+        // Swap the big integer data
+        //cswap(left, left + mwlen, mask, mwlen);
+        for (size_t j = 0; j < mwlen; j++) {
+            // 1. Conditional Update: inject new_val into 'left' if i == update_idx
+            uint32_t val_x = (left[j] ^ new_val[j]) & m_update;
+            left[j] ^= val_x;
+
+
+
+            // 2. Conditional Swap: swap 'left' and 'right' if i == swap_idx
+            uint32_t swap_x = (left[j] ^ right[j]) & m_swap;
+            left[j] ^= swap_x;
+            right[j] ^= swap_x;
+        }
+        // Swap the tracking index
+      	cswap(idxs + i, idxs + i + 1, m_swap, 1);
+
+        left += mwlen;
+		right += mwlen;
+    }
+	uint32_t m_update = -EQ(idxs[size -1], update_idx);
+	for (size_t j = 0; j < mwlen; j++) {
+        // 1. Conditional Update: inject new_val into 'left' if i == update_idx
+        uint32_t val_x = (left[j] ^ new_val[j]) & m_update;
+        left[j] ^= val_x;
+	}	
+}
+
+void sort3(uint32_t *arr, uint32_t * idxs, uint32_t* vals, size_t mwlen) {
+    cswap(arr, arr + mwlen, -LE(idxs[0], idxs[1]), mwlen); cswap(vals, vals + 1, -LE(idxs[0], idxs[1]), 1);
+	cswap(arr, arr + (2*mwlen), -LE(idxs[0], idxs[2]), mwlen); cswap(vals, vals + 2, -LE(idxs[0], idxs[2]), 1);
+	cswap(arr + mwlen, arr + (2*mwlen), -LE(idxs[1], idxs[2]), mwlen); cswap(vals + 1, vals + 2, -LE(idxs[1], idxs[2]), 1);
+} 
+
+
+void sort7(uint32_t *arr, uint32_t *idxs, uint32_t *vals, size_t mwlen) {
+#define CS7(i, j) \
+    cswap(arr+(i)*mwlen, arr+(j)*mwlen, -LE(idxs[i], idxs[j]), mwlen); \
+    cswap(vals+(i), vals+(j), -LE(idxs[i], idxs[j]), 1);
+    CS7(0,1); CS7(2,3); CS7(4,5);
+    CS7(0,2); CS7(1,3); CS7(4,6);
+    CS7(1,2); CS7(5,6);
+    CS7(0,4); CS7(1,5); CS7(2,6);
+    CS7(1,4); CS7(3,6);
+    CS7(2,4); CS7(3,5);
+    CS7(3,4);
+#undef CS7
+}
+
+
+void sort15(uint32_t *arr, uint32_t *idxs, uint32_t *vals, size_t mwlen) {
+#define CS15(i, j) \
+    cswap(arr+(i)*mwlen, arr+(j)*mwlen, -LE(idxs[i], idxs[j]), mwlen); \
+    cswap(vals+(i), vals+(j), -LE(idxs[i], idxs[j]), 1);
+    /* Layer 1 */
+    CS15(0,1);  CS15(2,3);  CS15(4,5);  CS15(6,7);
+    CS15(8,9);  CS15(10,11); CS15(12,13);
+    /* Layer 2 */
+    CS15(0,2);  CS15(1,3);  CS15(4,6);  CS15(5,7);
+    CS15(8,10); CS15(9,11); CS15(12,14);
+    /* Layer 3 */
+    CS15(1,2);  CS15(5,6);  CS15(9,10); CS15(13,14);
+    /* Layer 4 */
+    CS15(0,4);  CS15(1,5);  CS15(2,6);  CS15(3,7);
+    CS15(8,12); CS15(9,13); CS15(10,14);
+    /* Layer 5 */
+    CS15(2,4);  CS15(3,5);  CS15(10,12); CS15(11,13);
+    /* Layer 6 */
+    CS15(1,2);  CS15(3,4);  CS15(5,6);  CS15(9,10);
+    CS15(11,12); CS15(13,14);
+    /* Layer 7 */
+    CS15(0,8);  CS15(1,9);  CS15(2,10); CS15(3,11);
+    CS15(4,12); CS15(5,13); CS15(6,14);
+    /* Layer 8 */
+    CS15(4,8);  CS15(5,9);  CS15(6,10); CS15(7,11);
+    /* Layer 9 */
+    CS15(2,4);  CS15(3,5);  CS15(6,8);  CS15(7,9);
+    CS15(10,12); CS15(11,13);
+    /* Layer 10 */
+    CS15(1,2);  CS15(3,4);  CS15(5,6);  CS15(7,8);
+    CS15(9,10); CS15(11,12); CS15(13,14);
+#undef CS15
+}
+
+
+/*
+ * Sample a uniform random integer in [0, i) in constant time.
+ *
+ * Algorithm: always runs exactly N iterations (no early exit).
+ * Each iteration draws k random bits, masks to k' = ceil(log2(i+1)) bits,
+ * and conditionally updates r if the sample falls in [0, i).
+ * k must satisfy 2^k > i; N must be large enough that (2^k' - i) / 2^k'
+ * raised to the power N is negligible.
+ */
+static uint32_t
+sample_uniform_ct(const br_prng_class **rng, uint32_t i, int N)
+{
+    /* k' = number of bits needed: smallest k' s.t. 2^k' > i */
+    uint32_t kp = 0;
+    uint32_t tmp = i;
+    while (tmp > 0) { kp++; tmp >>= 1; }
+    uint32_t mask = (1U << kp) - 1;
+
+    uint32_t r = 0;
+    for (int n = 0; n < N; n++) {
+        uint32_t x;
+        (*rng)->generate(rng, &x, sizeof(x));
+        x &= mask;
+        /* r = (i > x) ? x : r, constant-time via MUX */
+        r = MUX(GT(i, x), x, r);
+    }
+    return r;
+}
+
+
+/*
+ * Constant-time Fisher-Yates shuffle.
+ *
+ * For each step i from (n-1) down to 1, pick j uniformly in [0, i+1) using
+ * sample_uniform_ct, then scan all positions k in [0, i] and conditionally
+ * swap arr[i] with arr[k] when k == j.  The inner loop always touches every
+ * element so no data-dependent memory access pattern is visible.
+ */
+static void
+fisher_yates_ct(const br_prng_class **rng, int *arr, int n)
+{
+    for (int i = n - 1; i >= 1; i--) {
+        uint32_t j = sample_uniform_ct(rng, (uint32_t)(i + 1), 1);
+        for (int k = 0; k <= i; k++) {
+            /* swap arr[i] and arr[k] iff k == j, constant-time */
+            int t = (arr[i] ^ arr[k]) & -(int)EQ((uint32_t)k, j);
+            arr[i] ^= t;
+            arr[k] ^= t;
+        }
+    }
+}
+
+
 /* see inner.h */
 uint32_t
 br_i31_modpow_opt_rand(uint32_t *x,
@@ -115,6 +265,8 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	uint32_t acc;
 	int acc_len, win_len, prev_bitlen;
 	uint32_t BUFF[TLEN_TMP];
+	uint32_t ONE[TLEN_TMP];
+
 	uint32_t r[(((4*BR_RSA_RAND_FACTOR)) + 63) >> 5];
 	uint32_t new_r[(BR_RSA_RAND_FACTOR + 63) >> 5];
 	
@@ -122,6 +274,8 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	r[1] |= 1;
 
 	uint32_t* curr_m = BUFF;
+	uint32_t* one = ONE;
+
 	br_i31_zero(curr_m, m[0]);
 	br_i31_mulacc(curr_m, m, r);
 
@@ -134,11 +288,11 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	/*
 	 * Get modulus size.
 	 */
-	mwlen = ( curr_m[0] + 4*BR_RSA_RAND_FACTOR + 61) / 31;
+	mwlen = ( curr_m[0] + BR_RSA_RAND_FACTOR + 61) / 31;
 	mlen = mwlen * sizeof curr_m[0];
 	mwlen += (mwlen & 1);
-	t1 = tmp + mwlen;
-	t2 = tmp + 2 * mwlen;
+	t1 = tmp;
+	t2 = tmp + mwlen;
     
 	
 	
@@ -146,7 +300,7 @@ br_i31_modpow_opt_rand(uint32_t *x,
      * We increased the moudulus size, now we zero words in x up to the modulus size
      */
 	uint32_t x_length = (x[0] + 63) >> 5;
-	for(;x_length < (curr_m[0] + 63 + 4*BR_RSA_RAND_FACTOR) >> 5; ++x_length){
+	for(;x_length < (curr_m[0] + 63 + BR_RSA_RAND_FACTOR) >> 5; ++x_length){
 		x[x_length] = 0;
 	}
 	x[0] = curr_m[0];
@@ -163,7 +317,7 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	}
 	for (win_len = 4; win_len > 1; win_len --) {
 		
-		if ((((uint32_t)1 << win_len) + 2) * mwlen <= twlen) {
+		if ((((uint32_t)1 << win_len) + 1) * mwlen <= twlen) {
 			break;
 		}
 	}
@@ -192,13 +346,13 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		base = t2 + mwlen;
 		for (u = 2; u < ((unsigned)1 << win_len); u ++) {
 
-			make_rand(  new_r, BR_RSA_RAND_FACTOR  );
-			new_r[1] |= 1;
+			//make_rand(  new_r, BR_RSA_RAND_FACTOR  );
+			//new_r[1] |= 1;
 
-			br_i31_zero(curr_m, curr_m[0] + 4*BR_RSA_RAND_FACTOR);
-			br_i31_mulacc(curr_m, m, new_r);
-			m0i = br_i31_ninv31(curr_m[1]);
-			curr_m[0] = prev_bitlen;			
+			//br_i31_zero(curr_m, curr_m[0] + 4*BR_RSA_RAND_FACTOR);
+			//br_i31_mulacc(curr_m, m, new_r);
+			//m0i = br_i31_ninv31(curr_m[1]);
+			//curr_m[0] = prev_bitlen;			
 
 			br_i31_montymul(base + mwlen, base, x, curr_m, m0i);
 			
@@ -208,12 +362,22 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	}
 
 	
+	uint32_t idxs[15]; 
+	uint32_t num_elements = (1U << win_len) - 1;
+	base = t2 + mwlen;
+	
+
+	for (uint32_t i = 0; i < num_elements; i++) {
+		idxs[i] = (i + 1);
+	}
+
 	make_rand(  new_r, 32 );
 
 	uint32_t perm_rand = reduce(new_r[1], win_len);
 
 	
-	rand_swap(perm_rand, win_len, mwlen, t2 + mwlen);
+	//rand_swap(perm_rand, win_len, mwlen, t2 + mwlen);
+	rand_perm(perm_rand, -1, win_len, mwlen, idxs, t2 + mwlen);
 
 	br_i31_zero(curr_m, prev_bitlen);
 	br_i31_mulacc(curr_m, m, r);
@@ -233,6 +397,10 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	x[(curr_m[0] + 31) >> 5] = 1;
 	br_i31_muladd_small(x, 0, curr_m);
 
+
+	br_i31_zero(one, curr_m[0]);
+	one[(curr_m[0] + 31) >> 5] = 1;
+	br_i31_muladd_small(one, 0, curr_m);
 	/*
 	 * We process bits from most to least significant. At each
 	 * loop iteration, we have acc_len bits in acc.
@@ -291,17 +459,17 @@ br_i31_modpow_opt_rand(uint32_t *x,
 			memset(t2, 0, mlen);
 			t2[0] = curr_m[0];
 			base = t2 + mwlen;
-			int offset = perm_rand;
+			int offset = 0;
 			uint32_t * perm_base = base + (offset * mwlen);
-			for (u = 1; u < ((uint32_t)1 << k); u ++) {
+			for (u = 1; u < ((uint32_t)1 << win_len); u ++) {
 				uint32_t mask;
-				mask = -EQ(u, bits);
+				mask = -EQ(idxs[u - 1], bits);
 				for (v = 1; v < mwlen; v ++) {
 					t2[v] |= mask & perm_base[v];
 				}
 				
 				offset += 1;
-				offset = reduce(offset, win_len);
+				//offset = reduce(offset, win_len);
 				perm_base = base + (offset * mwlen);
 			}
 		}
@@ -314,12 +482,21 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		
 		br_i31_montymul(t1, x, t2, curr_m, m0i);
 		CCOPY(NEQ(bits, 0), x, t1, mlen);
-		if (++swap_count == ROTATE){
+		/*if ((++swap_count) == ROTATE){
 			make_rand( new_r, 32 );
 			uint32_t r1 = reduce(new_r[1], win_len);
 		 	perm_rand += r1;
 		 	perm_rand = reduce(perm_rand, win_len);
 			rand_swap(r1, win_len, mwlen, t2 + mwlen);
+			swap_count = 0;
+		}*/
+		if((++swap_count) == 4){
+			br_i31_montymul(t1, one, t2, curr_m, m0i);
+			CCOPY(NEQ(bits, 0), t2, t1, mlen);
+
+			make_rand( new_r, 32 );
+			uint32_t r1 = reduce(new_r[1], win_len);
+			rand_perm(r1, bits, win_len, mwlen, idxs, t2 + mwlen);
 			swap_count = 0;
 		}
 
@@ -332,6 +509,8 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	br_i31_mulacc(curr_m, m, r);
 	curr_m[0] = prev_bitlen;
 	m0i = br_i31_ninv31(curr_m[1]);
+	memcpy(t1 + 1, x + 1, (curr_m[0] + 7) >> 3);
+	t1[0] = x[0];
 	br_i31_from_monty(t1, curr_m, m0i);
 	
 	br_i31_reduce(x, t1, m);

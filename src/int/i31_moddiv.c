@@ -158,6 +158,7 @@ co_reduce(uint32_t *a, uint32_t *b, size_t len,
 			a[k - 1] = za & 0x7FFFFFFF;
 			b[k - 1] = zb & 0x7FFFFFFF;
 		}
+		
 
 		/*
 		 * For the new values of cca and ccb, we need a signed
@@ -227,6 +228,7 @@ co_reduce_mod(uint32_t *a, uint32_t *b, size_t len,
 			a[k - 1] = (uint32_t)za & 0x7FFFFFFF;
 			b[k - 1] = (uint32_t)zb & 0x7FFFFFFF;
 		}
+		
 
 #define M   ((uint64_t)1 << 32)
 		tta = za >> 31;

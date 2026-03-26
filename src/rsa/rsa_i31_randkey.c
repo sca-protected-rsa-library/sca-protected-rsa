@@ -16,7 +16,7 @@ make_rand(uint32_t *x, uint32_t esize)
         else{
            limb_bits = limb_bits;
         }
-        x[i] = rng_get_random_blocking();
+        rng_get_random_blocking();//rng_get_random(&x[i]);//
         x[i] &= 0x7FFFFFFF;
     }
 
@@ -195,7 +195,7 @@ void init_temp_rsa_key(temp_rsa_key_t *temp, const br_rsa_private_key *sk) {
     temp->key.dplen = sk->dplen;
     memcpy(temp->key.dq, sk->dq, sk->dqlen);
     temp->key.dqlen = sk->dqlen;
-
+   // return;
     memcpy(temp->key.r1 + 1, sk->r1 + 1, (sk->r1[0] + 7) >> 3);
     temp->key.r1[0] = sk->r1[0];
 
