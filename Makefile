@@ -66,6 +66,7 @@ clean:
 	rm -f *.bin
 	rm -f *.o
 	rm -f *.d
+	rm -f *.su
 
 check:
 	@echo $(OBJS)
