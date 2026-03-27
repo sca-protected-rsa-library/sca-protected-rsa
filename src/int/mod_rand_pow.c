@@ -496,7 +496,7 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		br_i31_montymul(t1, x, t2, curr_m, m0i);
 		CCOPY(NEQ(bits, 0), x, t1, mlen);
 		
-		br_i31_montymul(t1, one, t2, curr_m, m0i);
+		//br_i31_montymul(t1, one, t2, curr_m, m0i);
 		CCOPY(NEQ(bits, 0), t2, t1, mlen);
 		base = t2 + mwlen;
 		for (u = 1; u < ((uint32_t)1 << win_len); u ++) {

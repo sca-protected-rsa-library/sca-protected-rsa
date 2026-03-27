@@ -220,17 +220,29 @@ typedef struct {
 	/** \brief Public exponent length (in bytes). */
 	size_t elen;
 	/** \brief random factor of p. */
-	uint32_t *r1;
+	unsigned char *r1;
+	/** \brief Public exponent length (in bytes). */
+	size_t r1len;
 	/** \brief random factor of q. */
-	uint32_t *r2;
+	unsigned char *r2;
+	/** \brief Public exponent length (in bytes). */
+	size_t r2len;
 	/** \brief randomized phi(p). */
-	uint32_t *phi_p;
+	unsigned char *phi_p;
+	/** \brief Public exponent length (in bytes). */
+	size_t phi_plen;
 	/** \brief randomized phi(q). */
-	uint32_t *phi_q;
+	unsigned char *phi_q;
+	/** \brief Public exponent length (in bytes). */
+	size_t phi_qlen;
+
+
 } br_rsa_private_key;
 
 #define BR_MAX_RSA_SIZE   4096
 #define BR_RSA_RAND_FACTOR 64
+#define BR_MAX_RSA_FACTOR   ((BR_MAX_RSA_SIZE + 64) >> 1)
+
 
 /**
  * @brief Composite structure for a temporary RSA key and its associated buffers.
@@ -257,19 +269,18 @@ typedef struct {
  */
 typedef struct {
     br_rsa_private_key key;
-    uint32_t r2[(4*BR_RSA_RAND_FACTOR + 63) >> 5];
-    uint32_t phi_p[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR + 63) >> 5];
-    uint32_t phi_q[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR + 63) >> 5];
+    unsigned char r2[(BR_RSA_RAND_FACTOR + 15) >> 3];
+    unsigned char phi_p[(BR_MAX_RSA_FACTOR + 2*BR_RSA_RAND_FACTOR + 15) >> 3];
+    unsigned char phi_q[(BR_MAX_RSA_FACTOR + 2*BR_RSA_RAND_FACTOR + 15) >> 3];
     unsigned char n_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
-    unsigned char p_buf[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR + 15) >> 3];
-    unsigned char q_buf[(BR_MAX_RSA_SIZE + BR_RSA_RAND_FACTOR + 15) >> 3];
-    unsigned char dp_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
-    unsigned char dq_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
-    unsigned char iq_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
+    unsigned char p_buf[(BR_MAX_RSA_FACTOR + 2*BR_RSA_RAND_FACTOR + 15) >> 3];
+    unsigned char q_buf[(BR_MAX_RSA_FACTOR + 2*BR_RSA_RAND_FACTOR + 15) >> 3];
+    unsigned char dp_buf[(BR_MAX_RSA_FACTOR + 3*BR_RSA_RAND_FACTOR + 15) >> 3];
+    unsigned char dq_buf[(BR_MAX_RSA_FACTOR + 3*BR_RSA_RAND_FACTOR + 15) >> 3];
+    unsigned char iq_buf[(BR_MAX_RSA_FACTOR + 3* BR_RSA_RAND_FACTOR + 15) >> 3];
     unsigned char e_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
-    uint32_t r1[(4*BR_RSA_RAND_FACTOR + 63) >> 5];
+    unsigned char r1[(BR_RSA_RAND_FACTOR + 15) >> 3];
 } temp_rsa_key_t;
-
 
 
 /*

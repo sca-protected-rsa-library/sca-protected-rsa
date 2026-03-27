@@ -968,7 +968,7 @@ void br_i31_update_key(br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwlen
  * \param t1    Temporary workspace buffer.
  * \return      The size (in bytes) of the resulting blinded exponent.
  */
-size_t blind_exponent(unsigned char *x, const unsigned char *d, const size_t size, uint32_t *m, uint32_t *t1);
+size_t blind_exponent(unsigned char * x, const unsigned char* d, const size_t size, const unsigned char * m, size_t mlen, uint32_t * t1);
 
 /**
  * \brief Generate random numbers.
