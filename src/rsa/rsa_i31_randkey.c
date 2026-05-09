@@ -163,7 +163,7 @@ static void create_mask(uint32_t * dest, uint32_t * m,uint32_t *op1,uint32_t * o
 }
 
 
-
+/*
 
 void init_temp_rsa_key(temp_rsa_key_t *temp, const br_rsa_private_key *sk) {
     // Set up pointers for temporary key
@@ -217,7 +217,7 @@ void init_temp_rsa_key(temp_rsa_key_t *temp, const br_rsa_private_key *sk) {
     temp->key.phi_q[0] = sk->phi_q[0];
 
 }
-
+*/
 
 
 void br_i31_init_key( const br_rsa_private_key *sk, br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwlen){

@@ -267,21 +267,22 @@ typedef struct {
  * - e_buf: Buffer for the public exponent (e).
  * - r1: Buffer for the random factor used in key pre-randomization.
  */
+ /*
 typedef struct {
     br_rsa_private_key key;
-    unsigned char r2[(BR_RSA_RAND_FACTOR + 15) >> 3];
+    unsigned char r2[(BR_MAX_RSA_FACTOR + 15) >> 3];
     unsigned char phi_p[(BR_MAX_RSA_FACTOR + 2*BR_RSA_RAND_FACTOR + 15) >> 3];
     unsigned char phi_q[(BR_MAX_RSA_FACTOR + 2*BR_RSA_RAND_FACTOR + 15) >> 3];
-    unsigned char n_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
+    unsigned char n_buf[(BR_MAX_RSA_FACTOR + 15) >> 3];
     unsigned char p_buf[(BR_MAX_RSA_FACTOR + 2*BR_RSA_RAND_FACTOR + 15) >> 3];
     unsigned char q_buf[(BR_MAX_RSA_FACTOR + 2*BR_RSA_RAND_FACTOR + 15) >> 3];
     unsigned char dp_buf[(BR_MAX_RSA_FACTOR + 3*BR_RSA_RAND_FACTOR + 15) >> 3];
     unsigned char dq_buf[(BR_MAX_RSA_FACTOR + 3*BR_RSA_RAND_FACTOR + 15) >> 3];
     unsigned char iq_buf[(BR_MAX_RSA_FACTOR + 3* BR_RSA_RAND_FACTOR + 15) >> 3];
-    unsigned char e_buf[(BR_MAX_RSA_SIZE + 15) >> 3];
-    unsigned char r1[(BR_RSA_RAND_FACTOR + 15) >> 3];
+    unsigned char e_buf[(BR_MAX_RSA_FACTOR + 15) >> 3];
+    unsigned char r1[(BR_MAX_RSA_FACTOR + 15) >> 3];
 } temp_rsa_key_t;
-
+*/
 
 /*
  * RSA "i31" engine. Similar to i32, but only 31 bits are used per 32-bit
@@ -317,54 +318,6 @@ uint32_t br_rsa_i31_public(unsigned char *x, size_t xlen,
 uint32_t br_rsa_i31_private(unsigned char *x,
 	const br_rsa_private_key *sk);
 
-/**
- * \brief RSA private key engine "i31" with Message and Exponent Blinding.
- *
- * This function extends the core engine by incorporating message and exponent
- * blinding countermeasures. The blinding randomizes the message and exponent values
- * during RSA operations to mitigate first-order side-channel attacks.
- *
- * \see br_rsa_private
- *
- * \param x    Operand to exponentiate.
- * \param sk   RSA private key.
- * \return  1 on success, 0 on error.
- */
-uint32_t br_rsa_i31_private_blind(unsigned char *x,
-	const br_rsa_private_key *sk);
-
-/**
- * \brief RSA private key engine "i31" with Modulus Randomization.
- *
- * This variant builds on the message/exponent blinding engine by adding modulus 
- * re-randomization. The algorithm randomizes the modulus during each iteration of
- * exponentiation, providing an extra layer of protection against side-channel leakage.
- *
- * \see br_rsa_private
- *
- * \param x    Operand to exponentiate.
- * \param sk   RSA private key.
- * \return  1 on success, 0 on error.
- */
-uint32_t br_rsa_i31_private_blind_mod(unsigned char *x,
-	const br_rsa_private_key *sk);
-
-/**
- * \brief RSA private key engine "i31" with Modulus Randomization and Key Pre-Randomization.
- *
- * This function further extends the previous countermeasures by incorporating key 
- * pre-randomization. In addition to message/exponent blinding and modulus re-randomization,
- * it randomizes key components (i.e., pre-masking the key) to enhance protection 
- * against side-channel and fault injection attacks.
- *
- * \see br_rsa_private
- *
- * \param x    Operand to exponentiate.
- * \param sk   RSA private key.
- * \return  1 on success, 0 on error.
- */
-uint32_t br_rsa_i31_private_blind_mod_key(unsigned char *x,
-	const br_rsa_private_key *sk);
 
 /**
  * \brief RSA private key engine "i31" with Fault Injection Countermeasures.
@@ -381,7 +334,7 @@ uint32_t br_rsa_i31_private_blind_mod_key(unsigned char *x,
  * \return  1 on success, 0 on error.
  */
 uint32_t br_rsa_i31_private_blind_mod_key_FI(unsigned char *x,
-	const br_rsa_private_key *sk);
+	 br_rsa_private_key *sk);
 
 
 

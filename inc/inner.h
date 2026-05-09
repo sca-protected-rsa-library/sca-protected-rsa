@@ -992,5 +992,5 @@ void make_rand(uint32_t *x, uint32_t esize);
  * @param temp Pointer to the temporary RSA key structure to be initialized.
  * @param sk   Pointer to the original (const) BearSSL RSA private key.
  */
-void init_temp_rsa_key(temp_rsa_key_t *temp, const br_rsa_private_key *sk);
+//void init_temp_rsa_key(temp_rsa_key_t *temp, const br_rsa_private_key *sk);
 #endif
