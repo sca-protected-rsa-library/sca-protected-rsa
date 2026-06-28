@@ -56,5 +56,5 @@ br_i31_from_monty(uint32_t *x, const uint32_t *m, uint32_t m0i)
 	 * carry, second call performs the subtraction only if the carry
 	 * is 0).
 	 */
-	br_i31_sub(x, m, NOT(br_i31_sub(x, m, 0)));
+	//br_i31_sub(x, m, NOT(br_i31_sub(x, m, 0)));
 }

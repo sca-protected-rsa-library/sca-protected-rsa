@@ -53,95 +53,6 @@ cswap(uint32_t *a, uint32_t *b, uint32_t mask, size_t n)
 
 
 
-/*
- * Randomly rotate the window contents.
- *
- * This function rotates the 'size' elements in the 'base' array by 'offset'
- * positions. The rotation is performed in constant time with respect to
- * 'offset'.
- *
- * offset: rotation amount (must be less than size).
- * winlen: window length in bits (size = 2^winlen - 1).
- * mwlen: length of each element in words.
- * base: pointer to the start of the array.
- */
-void rand_swap(uint32_t offset, uint32_t winlen, size_t mwlen, uint32_t* base){
-	uint32_t size = (1U << winlen) - 1;
-    
-    for (uint32_t k = 0; k < size; k++) {
-        uint32_t do_rotate = -LT(k, offset);
-
-        for (uint32_t i = size - 1; i > 0; i--) {
-            uint32_t* left  = base + ((i - 1) * mwlen);
-            uint32_t* right = base + (i * mwlen);
-            
-            cswap(left, right, do_rotate, mwlen);
-        }
-    }
-}
-
-/*
- * Reduce x modulo 2^k - 1.
- *
- * This function computes x mod (2^k - 1).
- * It is used to keep indices within the valid range for the window.
- */
-static inline uint32_t
-reduce(uint32_t x, int k)
-{
-	uint32_t mask, i;
-
-	mask = ((uint32_t)1 << k) - 1;
-	
-	
-	for (i = 0; i < 16; i ++) {
-		x = (x >> k) + (x & mask);
-	}
-
-	
-	return MUX(EQ(x, mask), 0, x);
-}
-
-
-void rand_perm(uint32_t idx, uint32_t update_idx, uint32_t winlen, size_t mwlen, uint32_t *idxs, uint32_t *base) {
-    uint32_t size = (1U << winlen) - 1;
-    uint32_t * left  = base;
-	uint32_t * right = left + mwlen;
-	uint32_t * new_val = base - mwlen;
-
-	
-    for (uint32_t i = 0; i < size -1; i++) {
-        // Create an all-ones mask if i == idx
-        uint32_t m_swap = -EQ(i, idx);
-		uint32_t m_update = -EQ(idxs[i], update_idx);
-        
-        // Swap the big integer data
-        //cswap(left, left + mwlen, mask, mwlen);
-        for (size_t j = 0; j < mwlen; j++) {
-            // 1. Conditional Update: inject new_val into 'left' if i == update_idx
-            uint32_t val_x = (left[j] ^ new_val[j]) & m_update;
-            left[j] ^= val_x;
-
-
-
-            // 2. Conditional Swap: swap 'left' and 'right' if i == swap_idx
-            uint32_t swap_x = (left[j] ^ right[j]) & m_swap;
-            left[j] ^= swap_x;
-            right[j] ^= swap_x;
-        }
-        // Swap the tracking index
-      	cswap(idxs + i, idxs + i + 1, m_swap, 1);
-
-        left += mwlen;
-		right += mwlen;
-    }
-	uint32_t m_update = -EQ(idxs[size -1], update_idx);
-	for (size_t j = 0; j < mwlen; j++) {
-        // 1. Conditional Update: inject new_val into 'left' if i == update_idx
-        uint32_t val_x = (left[j] ^ new_val[j]) & m_update;
-        left[j] ^= val_x;
-	}	
-}
 
 void sort3(uint32_t *arr, uint32_t * idxs, uint32_t* vals, size_t mwlen) {
     cswap(arr, arr + mwlen, -LE(idxs[0], idxs[1]), mwlen); cswap(vals, vals + 1, -LE(idxs[0], idxs[1]), 1);
@@ -259,22 +170,22 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	const unsigned char *e, size_t elen,
 	const uint32_t *m, uint32_t m0i, uint32_t *tmp, size_t twlen)
 {	
+
 	size_t mlen, mwlen;
 	uint32_t *t1, *t2, *base;
 	size_t u, v;
 	uint32_t acc;
 	int acc_len, win_len, prev_bitlen;
 	uint32_t BUFF[TLEN_TMP];
-	uint32_t ONE[TLEN_TMP];
 
 	uint32_t r[(((4*BR_RSA_RAND_FACTOR)) + 63) >> 5];
 	uint32_t new_r[(BR_RSA_RAND_FACTOR + 63) >> 5];
 	
 	make_rand( r, (BR_RSA_RAND_FACTOR + 32));
 	r[1] |= 1;
+	
 
 	uint32_t* curr_m = BUFF;
-	uint32_t* one = ONE;
 
 	br_i31_zero(curr_m, m[0]);
 	br_i31_mulacc(curr_m, m, r);
@@ -286,9 +197,10 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	
 	
 	/*
+	
 	 * Get modulus size.
 	 */
-	mwlen = ( curr_m[0] + BR_RSA_RAND_FACTOR + 61) / 31;
+	mwlen = ( curr_m[0] + BR_RSA_RAND_FACTOR + 63) >> 5;
 	mlen = mwlen * sizeof curr_m[0];
 	mwlen += (mwlen & 1);
 	t1 = tmp;
@@ -346,13 +258,7 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		base = t2 + mwlen;
 		for (u = 2; u < ((unsigned)1 << win_len); u ++) {
 
-			//make_rand(  new_r, BR_RSA_RAND_FACTOR  );
-			//new_r[1] |= 1;
-
-			//br_i31_zero(curr_m, curr_m[0] + 4*BR_RSA_RAND_FACTOR);
-			//br_i31_mulacc(curr_m, m, new_r);
-			//m0i = br_i31_ninv31(curr_m[1]);
-			//curr_m[0] = prev_bitlen;			
+			
 
 			br_i31_montymul(base + mwlen, base, x, curr_m, m0i);
 			
@@ -375,7 +281,6 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	}
 	
 
-	//rand_perm(perm_rand, -1, win_len, mwlen, idxs, t2 + mwlen);
 	
 	fisher_yates_ct(idxs, num_elements);
 	
@@ -392,13 +297,11 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		sort3(base, idxs, vals, mwlen);
 	}
 	
-	br_i31_zero(curr_m, prev_bitlen);
-	br_i31_mulacc(curr_m, m, r);
 
 	
 
 	m0i = br_i31_ninv31(curr_m[1]);
-	prev_bitlen = curr_m[0];
+	//prev_bitlen = curr_m[0];
 
 	/*
 	 * We need to set x to 1, in Montgomery representation. This can
@@ -411,9 +314,6 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	br_i31_muladd_small(x, 0, curr_m);
 
 
-	br_i31_zero(one, curr_m[0]);
-	one[(curr_m[0] + 31) >> 5] = 1;
-	br_i31_muladd_small(one, 0, curr_m);
 	/*
 	 * We process bits from most to least significant. At each
 	 * loop iteration, we have acc_len bits in acc.
@@ -421,6 +321,7 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	acc = 0;
 	acc_len = 0;
 	int swap_count = 0;
+	
 
 	while (acc_len > 0 || elen > 0) {
 		int i, k;
@@ -457,7 +358,7 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		 */
 
 		for (i = 0; i < k; i ++) {
-			br_i31_montymul(t1, x, x, curr_m, m0i);
+			br_i31_montymul2(t1, x, x, curr_m, m0i);
 			memcpy(x, t1, mlen);
 		}
 
@@ -482,7 +383,6 @@ br_i31_modpow_opt_rand(uint32_t *x,
 				}
 				
 				offset += 1;
-				//offset = reduce(offset, win_len);
 				perm_base = base + (offset * mwlen);
 			}
 		}
@@ -493,21 +393,18 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		 */
 
 		
-		br_i31_montymul(t1, x, t2, curr_m, m0i);
+		br_i31_montymul2(t1, x, t2, curr_m, m0i);
 		CCOPY(NEQ(bits, 0), x, t1, mlen);
-		
-		br_i31_montymul(t1, one, t2, curr_m, m0i);
-		CCOPY(NEQ(bits, 0), t2, t1, mlen);
+		t2[0] = prev_bitlen;
+		br_i31_add(t2, curr_m, NEQ(bits, 0));
 		base = t2 + mwlen;
 		for (u = 1; u < ((uint32_t)1 << win_len); u ++) {
 			CCOPY(EQ(bits, vals[u - 1]), base, t2, mlen);
 			base = base + mwlen;
 		}
 		base = t2 + mwlen;
-		//make_rand( rng, new_r, 32 );
-		//uint32_t r1 = reduce(new_r[1], win_len);
-		//rand_perm(r1, bits, win_len, mwlen, idxs, t2 + mwlen);
-		if (++swap_count == 1){
+
+		if (++swap_count == ((1<<(win_len -1) ) )){
 			fisher_yates_ct(idxs, num_elements);
 		
 			base = t2 + mwlen;
@@ -526,20 +423,32 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		}
 
 	}
+
+	
 	/*
 	 * Convert back from Montgomery representation, and exit.
 	 */
 
 	br_i31_zero(curr_m, prev_bitlen);
+	
 	br_i31_mulacc(curr_m, m, r);
 	curr_m[0] = prev_bitlen;
 	m0i = br_i31_ninv31(curr_m[1]);
+		
+	
+	br_i31_zero(t1, curr_m[0]);
 	memcpy(t1 + 1, x + 1, (curr_m[0] + 7) >> 3);
-	t1[0] = x[0];
+	t1[0] = curr_m[0];
+
+
 	br_i31_from_monty(t1, curr_m, m0i);
+
+	
 	
 	br_i31_reduce(x, t1, m);
 	
+	
+
 	return 1;
 }
 

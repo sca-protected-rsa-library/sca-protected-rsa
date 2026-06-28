@@ -826,7 +826,8 @@ uint32_t br_i31_ninv31(uint32_t x);
  */
 void br_i31_montymul(uint32_t *d, const uint32_t *x, const uint32_t *y,
 	const uint32_t *m, uint32_t m0i);
-
+void br_i31_montymul2(uint32_t *d, const uint32_t *x, const uint32_t *y,
+	const uint32_t *m, uint32_t m0i);
 /*
  * Convert a modular integer to Montgomery representation. The integer x[]
  * MUST be lower than m[], but with the same announced bit length.

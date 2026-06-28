@@ -21,6 +21,7 @@ CFLAGS		+= -O2 \
 		   -I./src \
 		   -I$(OPENCM3_DIR)/include \
 		   -I./inc \
+		   -I./. \
 		   -fno-common $(ARCH_FLAGS) -MD $(DEFINES) \
 
 LDFLAGS		+= --static -Wl,--start-group -lc -lgcc -lnosys -Wl,--end-group  \
@@ -31,7 +32,7 @@ LDFLAGS		+= --static -Wl,--start-group -lc -lgcc -lnosys -Wl,--end-group  \
 
 -include local.mk
 
-all: lib main.bin
+all: lib main.bin main.elf
 
 flash: lib main.bin
 	st-flash write main.bin 0x8000000
