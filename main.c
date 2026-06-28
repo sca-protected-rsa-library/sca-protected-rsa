@@ -1,6 +1,7 @@
 #include "stm32wrapper.h"
 #include "bearssl.h"
 #include "inner.h"
+#include "rsa_test_keys.h"
 #define MAX_ROUND 100
 
 static const unsigned char RSA4096_P[] = {
@@ -465,7 +466,7 @@ int main(void) {
 	unsigned char tmp[513];
 	memset(tmp, 'R', sizeof tmp);
 	tmp[0] = 0;
-	int ret = 0 ;
+	uint32_t ret = 0 ;
 
 	int i;
 	unsigned int oldcount;
@@ -476,18 +477,7 @@ int main(void) {
  	DWT_CTRL |= DWT_CTRL_CYCCNTENA;
 
 
-  	for (i = 0; i < 200; i++) {
-    		oldcount = DWT_CYCCNT;
-    		ret = br_rsa_i31_private_blind_mod_key_FI(tmp, &RSA4096_EXT);//br_rsa_i31_private(tmp, &RSA4096_EXT);//
-    		newcount = (DWT_CYCCNT - oldcount);
-    		sprintf(str, "Cost of rsa_decrypt: %d ret: %d", newcount, ret);
- 		send_USART_str((unsigned char*)str);
-  	}
-
-  	
- 
-
-  	send_USART_str((unsigned char*)"Test crypto!");
+        send_USART_str((unsigned char*)"Test crypto!");
   	unsigned char t1[512], t2[512], t3[512];
   	size_t len;
 
@@ -510,6 +500,64 @@ int main(void) {
 
 
   	send_USART_str((unsigned char*)"Done!");
+
+        send_USART_str((unsigned char*)"Test CT!");
+
+
+  	for (i = 0; i < 100; i++) {
+		const rsa4096_blinded_key_t *k = &rsa_test_keys[0];
+		br_rsa_private_key sk = {
+			(void*)k->n,     k->n_bitlen,
+			(void*)k->p,     k->plen,
+			(void*)k->q,     k->qlen,
+			(void*)k->dp,    k->dplen,
+			(void*)k->dq,    k->dqlen,
+			(void*)k->iq,    k->iqlen,
+			(void*)k->e,     k->elen,
+                        (void*)k->r1,    k->r1len,
+			(void*)k->r2,    k->r2len,
+			(void*)k->phi_p, k->phi_plen,
+			(void*)k->phi_q, k->phi_qlen,
+		};
+		br_rsa_public_key pk = {
+			(void*)k->n,     RSA_N_BYTES,
+			(void*)k->e,     k->elen,
+		};
+
+                /*
+                 * Generate a fresh random message and encrypt it under this
+                 * key's public key, so the measured input is a valid
+                 * ciphertext (m^e mod n) for the key being used.
+                 */
+                memcpy(t3, t1, len);
+
+                for (size_t b = 0; b < len; b += 4) {
+                        uint32_t w = rng_get_random_blocking();
+                        t3[b + 0] = (unsigned char)(w);
+                        t3[b + 1] = (unsigned char)(w >> 8);
+                        t3[b + 2] = (unsigned char)(w >> 16);
+                        t3[b + 3] = (unsigned char)(w >> 24);
+                }
+                t3[0] = 0x00;   /* force m < n (n has its top bit set) */
+                if (!br_rsa_i31_public(t3, len, &pk)) {
+                        sprintf(str, "encrypt failed (key %d)", i);
+                        send_USART_str((unsigned char*)str);
+                }
+
+//                memcpy(t3, t1, len);
+    		oldcount = DWT_CYCCNT;
+    		ret = br_rsa_i31_private_blind_mod_key_FI(t3, &sk);
+    		newcount = (DWT_CYCCNT - oldcount);
+                sprintf(str, "Cost of rsa_decrypt: %llu ret: %d", newcount, ret);
+ 	        send_USART_str((unsigned char*)str);
+
+
+  	}
+
+  	
+ 
+
+  	
 
   	while (1)
     	;
