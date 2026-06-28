@@ -46,28 +46,8 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, br_rsa_private_key *sk)
 
         memset(tmp, 0, sizeof tmp);
         
-        /*
-         * Compute the actual lengths of p and q, in bytes.
-         * These lengths are not considered secret (we cannot really hide
-         * them anyway in constant-time code).
-         */
-        p = sk->p;
-        plen = sk->plen;
-
-        while (plen > 0 && *p == 0) {
-                p ++;
-                plen --;
-        }
-        q = sk->q;
-        qlen = sk->qlen;
-        while (qlen > 0 && *q == 0) {
-                q ++;
-                qlen --;
-        }
-        /*
-         * Compute the maximum factor length, in words.
-         */
-        z = (long)(plen > qlen ? plen : qlen) << 3;
+       
+        z = (long)(sk->plen > sk->qlen ? sk->plen : sk->qlen) << 3;
         fwlen = 10;
         while (z > 0) {
                 z -= 31;
@@ -91,7 +71,6 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, br_rsa_private_key *sk)
          */
         xlen = (sk->n_bitlen + 7) >> 3;
         // Assume tmp and fwlen are defined appropriately.
-        //temp_rsa_key_t rsa_sk;
        
         #define SMALL_SLEN (1 + (((3 * BR_RSA_RAND_FACTOR + 93) / 31 + 2) & ~1u))
         uint32_t s2_prime[SMALL_SLEN];
@@ -104,21 +83,19 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, br_rsa_private_key *sk)
         memset(r_msg, 0, sizeof r_msg);
         make_rand(r_msg, BR_RSA_RAND_FACTOR);
         r_msg[1] |= 1;
-        r_msg[0] = br_i31_bit_length(r_msg + 1, (BR_RSA_RAND_FACTOR + 31) >> 5);
+        r_msg[0] = BR_RSA_RAND_FACTOR; 
        
         
-       // init_temp_rsa_key(&rsa_sk, sk);
-        //br_i31_init_key(sk, &rsa_sk.key, tmp, fwlen);
-
         br_i31_update_key(sk, tmp, fwlen);
-        
+
         
         uint32_t r1[1 + (BR_RSA_RAND_FACTOR + 30) / 31];
         uint32_t r2[1 + (BR_RSA_RAND_FACTOR + 30) / 31];
         br_i31_decode(r1, sk->r1,sk->r1len);
         br_i31_decode(r2, sk->r2,sk->r2len);
+        r1[0] = BR_RSA_RAND_FACTOR;
+        r2[0] = BR_RSA_RAND_FACTOR;
 
-        
         /*
          * Decode q.
          */
@@ -234,7 +211,6 @@ br_rsa_i31_private_blind_mod_key_FI(unsigned char *x, br_rsa_private_key *sk)
 
         r &= br_i31_modpow_opt_rand( s2_prime, dq, dqlen, r2, r20i,
                 tmp + 5 * fwlen, TLEN - 5 * fwlen);
-        
         
 
         /*

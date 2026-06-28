@@ -504,31 +504,51 @@ int main(void) {
         send_USART_str((unsigned char*)"Test CT!");
 
 
-  	for (i = 0; i < 100; i++) {
-		const rsa4096_blinded_key_t *k = &rsa_test_keys[0];
+	/* SRAM working buffers for mutable key fields — one copy reused each iteration */
+	static uint8_t buf_n[RSA_N_BYTES];
+	static uint8_t buf_r1[RSA_R_BYTES];
+	static uint8_t buf_r2[RSA_R_BYTES];
+	static uint8_t buf_p[RSA_P_BYTES];
+	static uint8_t buf_q[RSA_P_BYTES];
+	static uint8_t buf_iq[RSA_P_BYTES];
+	static uint8_t buf_phi_p[RSA_P_BYTES];
+	static uint8_t buf_phi_q[RSA_P_BYTES];
+	static uint8_t buf_dp[RSA_DP_BYTES];
+	static uint8_t buf_dq[RSA_DP_BYTES];
+
+  	for (i = 0; i < RSA_NUM_KEYS; i++) {
+		const rsa4096_blinded_key_t *k = &rsa_test_keys[i];
+
+		/* refresh mutable fields from flash for this iteration */
+		memcpy(buf_n,     k->n,     RSA_N_BYTES);
+		memcpy(buf_r1,    k->r1,    k->r1len);
+		memcpy(buf_r2,    k->r2,    k->r2len);
+		memcpy(buf_p,     k->p,     k->plen);
+		memcpy(buf_q,     k->q,     k->qlen);
+		memcpy(buf_iq,    k->iq,    k->iqlen);
+		memcpy(buf_phi_p, k->phi_p, k->phi_plen);
+		memcpy(buf_phi_q, k->phi_q, k->phi_qlen);
+		memcpy(buf_dp,    k->dp,    k->dplen);
+		memcpy(buf_dq,    k->dq,    k->dqlen);
+
 		br_rsa_private_key sk = {
-			(void*)k->n,     k->n_bitlen,
-			(void*)k->p,     k->plen,
-			(void*)k->q,     k->qlen,
-			(void*)k->dp,    k->dplen,
-			(void*)k->dq,    k->dqlen,
-			(void*)k->iq,    k->iqlen,
-			(void*)k->e,     k->elen,
-                        (void*)k->r1,    k->r1len,
-			(void*)k->r2,    k->r2len,
-			(void*)k->phi_p, k->phi_plen,
-			(void*)k->phi_q, k->phi_qlen,
+			buf_n,         k->n_bitlen,
+			buf_p,         k->plen,
+			buf_q,         k->qlen,
+			buf_dp,        k->dplen,
+			buf_dq,        k->dqlen,
+			buf_iq,        k->iqlen,
+			(void*)k->e,   k->elen,
+			buf_r1,        k->r1len,
+			buf_r2,        k->r2len,
+			buf_phi_p,     k->phi_plen,
+			buf_phi_q,     k->phi_qlen,
 		};
 		br_rsa_public_key pk = {
-			(void*)k->n,     RSA_N_BYTES,
+			buf_n,           RSA_N_BYTES,
 			(void*)k->e,     k->elen,
 		};
 
-                /*
-                 * Generate a fresh random message and encrypt it under this
-                 * key's public key, so the measured input is a valid
-                 * ciphertext (m^e mod n) for the key being used.
-                 */
                 memcpy(t3, t1, len);
 
                 for (size_t b = 0; b < len; b += 4) {
@@ -539,17 +559,18 @@ int main(void) {
                         t3[b + 3] = (unsigned char)(w >> 24);
                 }
                 t3[0] = 0x00;   /* force m < n (n has its top bit set) */
+                memcpy(t2, t3, len);    /* save plaintext before encryption */
                 if (!br_rsa_i31_public(t3, len, &pk)) {
                         sprintf(str, "encrypt failed (key %d)", i);
                         send_USART_str((unsigned char*)str);
                 }
 
-//                memcpy(t3, t1, len);
     		oldcount = DWT_CYCCNT;
     		ret = br_rsa_i31_private_blind_mod_key_FI(t3, &sk);
     		newcount = (DWT_CYCCNT - oldcount);
                 sprintf(str, "Cost of rsa_decrypt: %llu ret: %d", newcount, ret);
  	        send_USART_str((unsigned char*)str);
+                check_equals("RSA decrypt", t2, t3, len);
 
 
   	}

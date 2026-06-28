@@ -16,7 +16,7 @@ make_rand(uint32_t *x, uint32_t esize)
         else{
            limb_bits = limb_bits;
         }
-        rng_get_random_blocking();//rng_get_random(&x[i]);//
+        x[i] = rng_get_random_blocking();
         x[i] &= 0x7FFFFFFF;
     }
 
@@ -67,6 +67,7 @@ make_rand_coprime(unsigned char *x, uint32_t esize, unsigned char  *y, uint32_t 
    
     size_t len_bytes = (esize + 7) >> 3;
     br_i31_decode(r1, y, len_bytes);
+    r1[0] = esize; 
     uint32_t y0i = br_i31_ninv31(r1[1]);
     uint32_t have_best = 0;
 
@@ -125,7 +126,7 @@ size_t blind_exponent( unsigned char * x, const unsigned char* d, const size_t s
 
         /* Blinded exponent: d + r * phi(m) */
         br_i31_mulacc(t2, t1, r);
-        t2[0] = br_i31_bit_length(t2 + 1, (t2[0] + 31) >> 5);
+        //t2[0] = br_i31_bit_length(t2 + 1, (t2[0] + 31) >> 5);
         size_t xlen = (t2[0] + 7) >> 3;
 
         br_i31_encode(x, xlen, t2);
@@ -139,10 +140,11 @@ static void reblind(uint32_t * dest, uint32_t * src, uint32_t* mod, uint32_t * n
         br_i31_zero(tmp_buf, 2*mod[0]);
         new_mask[0] = mod[0];
         tmp_buf[0] = mod[0];
+        src[0] = mod[0];
         br_i31_mulacc(tmp_buf, new_mask, src);
         br_i31_zero(dest, mod[0]);
         br_i31_reduce(dest, tmp_buf, mod);
-        dest[0] = src[0];
+        dest[0] = mod[0];
 }
 
 static void inverse(uint32_t * dest, uint32_t * src, uint32_t * mod, uint32_t * tmp){
@@ -150,7 +152,7 @@ static void inverse(uint32_t * dest, uint32_t * src, uint32_t * mod, uint32_t * 
         src[0] = mod[0];
         dest[1] = 1;
         br_i31_moddiv(dest, src, mod, br_i31_ninv31(mod[1]), tmp);
-        dest[0] = br_i31_bit_length(dest + 1, (mod[0] + 31) >> 5);
+        dest[0] = mod[0];//br_i31_bit_length(dest + 1, (mod[0] + 31) >> 5);
 }
 
 static void create_mask(uint32_t * dest, uint32_t * m,uint32_t *op1,uint32_t * op2, uint32_t * tmp_buf){
@@ -162,62 +164,6 @@ static void create_mask(uint32_t * dest, uint32_t * m,uint32_t *op1,uint32_t * o
         dest[0] = br_i31_bit_length(dest + 1, (m[0] + 31) >> 5);
 }
 
-
-/*
-
-void init_temp_rsa_key(temp_rsa_key_t *temp, const br_rsa_private_key *sk) {
-    // Set up pointers for temporary key
-    temp->key.r1 = temp->r1;
-    temp->key.r2 = temp->r2;
-    temp->key.n  = temp->n_buf;
-    temp->key.p  = temp->p_buf;
-    temp->key.q  = temp->q_buf;
-    temp->key.dp = temp->dp_buf;
-    temp->key.dq = temp->dq_buf;
-    temp->key.iq = temp->iq_buf;
-    temp->key.phi_p = temp->phi_p;
-    temp->key.phi_q = temp->phi_q;
-    temp->key.e  = temp->e_buf;
-    memset(temp->key.r1,   0, sizeof(temp->r1));
-    memset(temp->key.r2,   0, sizeof(temp->r2));
-    memset(temp->key.n,    0, sizeof(temp->n_buf));
-    memset(temp->key.p,    0, sizeof(temp->p_buf));
-    memset(temp->key.q,    0, sizeof(temp->q_buf));
-    memset(temp->key.dp,   0, sizeof(temp->dp_buf));
-    memset(temp->key.dq,   0, sizeof(temp->dq_buf));
-    memset(temp->key.iq,   0, sizeof(temp->iq_buf));
-    memset(temp->key.phi_p,0, sizeof(temp->phi_p));
-    memset(temp->key.phi_q,0, sizeof(temp->phi_q));
-    // Copy key components from the original key (sk)
-    temp->key.n_bitlen = sk->n_bitlen;
-    memcpy(temp->key.n, sk->n, (sk->n_bitlen + 7) >> 3);
-    memcpy(temp->key.e, sk->e, sk->elen);
-    temp->key.elen = sk->elen;
-    memcpy(temp->key.p, sk->p, sk->plen);
-    temp->key.plen = sk->plen;
-    memcpy(temp->key.q, sk->q, sk->qlen);
-    temp->key.qlen = sk->qlen;
-    memcpy(temp->key.iq, sk->iq, sk->iqlen);
-    temp->key.iqlen = sk->iqlen;
-    memcpy(temp->key.dp, sk->dp, sk->dplen);
-    temp->key.dplen = sk->dplen;
-    memcpy(temp->key.dq, sk->dq, sk->dqlen);
-    temp->key.dqlen = sk->dqlen;
-    return;
-    memcpy(temp->key.r1 + 1, sk->r1 + 1, (sk->r1[0] + 7) >> 3);
-    temp->key.r1[0] = sk->r1[0];
-
-    memcpy(temp->key.r2 + 1, sk->r2 + 1, (sk->r2[0] + 7) >> 3);
-    temp->key.r2[0] = sk->r2[0];
-
-    memcpy(temp->key.phi_p + 1, sk->phi_p + 1, (sk->phi_p[0] + 7) >> 3);
-    temp->key.phi_p[0] = sk->phi_p[0];
-
-    memcpy(temp->key.phi_q + 1, sk->phi_q + 1, (sk->phi_q[0] + 7) >> 3);
-    temp->key.phi_q[0] = sk->phi_q[0];
-
-}
-*/
 
 
 void br_i31_init_key( const br_rsa_private_key *sk, br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwlen){
@@ -350,7 +296,7 @@ void br_i31_init_key( const br_rsa_private_key *sk, br_rsa_private_key *new_sk, 
 
 void br_i31_update_key(  br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwlen ){
 
-         uint32_t * r1_inv = tmp;
+        uint32_t * r1_inv = tmp;
         uint32_t * r2_inv = tmp + 2 * fwlen;
         uint32_t * t1 = r2_inv + 2 * fwlen;
         uint32_t * mod = t1 + 2 * fwlen;
@@ -365,30 +311,43 @@ void br_i31_update_key(  br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwl
         br_i31_decode(r1, new_sk->r1, new_sk->r1len);
         br_i31_decode(r2, new_sk->r2, new_sk->r2len);
 
+
         // calculating multiplicative inverse of r_1
         br_i31_zero(t1, mod[0]);
         memcpy(t1 + 1, r1 + 1, (r1[0] + 7) >> 3);
+
+
         inverse(r1_inv, t1, mod, t3);
 
+
         // generating new value for r_1
-        br_i31_zero(r1, 31 + BR_RSA_RAND_FACTOR);
+        br_i31_zero(r1, BR_RSA_RAND_FACTOR + 32);
+
         make_rand(r1, BR_RSA_RAND_FACTOR);
+        
         r1[1] |= 1;
         r1[0] = BR_RSA_RAND_FACTOR;
-        br_i31_encode(new_sk->r1, new_sk->r1len, r1);
-        
+   
 
+        br_i31_encode(new_sk->r1, (BR_RSA_RAND_FACTOR + 7) >> 3, r1);
         // generating new value for r_2
+
         make_rand_coprime(new_sk->r2, BR_RSA_RAND_FACTOR, new_sk->r1, t3);
-        
+
+
         uint32_t r2_new[1 + (BR_RSA_RAND_FACTOR + 30) / 31];
+
         br_i31_decode(r2_new, new_sk->r2, new_sk->r2len);
         r2_new[0] = new_sk->r2len << 3;
+
         // re-blinding p
         br_i31_decode(t1, new_sk->p, new_sk->plen);
         create_mask(t3, mod, r1_inv, r1, t4);
+
         reblind(t3, t1, mod, t3, t4);
+
         t3[0] = t1[0] + BR_RSA_RAND_FACTOR;
+
         br_i31_encode(new_sk->p,new_sk->plen, t3);
 
 
@@ -411,17 +370,15 @@ void br_i31_update_key(  br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwl
         br_i31_decode(t3, new_sk->dp, new_sk->dplen);
         t3[0] = t1[0];
         br_i31_add(t3, t1, 1);
-        t3[0] = br_i31_bit_length(t3 + 1, (mod[0] + 31) >> 5);
-        br_i31_encode(new_sk->dp, (t3[0] + 7 + BR_RSA_RAND_FACTOR) >> 3, t3);
-        new_sk->dplen = (t3[0] + 7 + BR_RSA_RAND_FACTOR) >> 3;
-        
+
+        br_i31_encode(new_sk->dp, new_sk->dplen, t3);
+
         //calculating multiplicative inverse of old r_2
         br_i31_zero(t1, mod[0]);
         memcpy(t1 + 1, r2 + 1, ((BR_RSA_RAND_FACTOR + 7)) >> 3);
         inverse(r2_inv, t1, mod, t3);
               
  
-
         // copy old phi(q)
         br_i31_zero(t3, mod[0]);
         br_i31_decode(t3, new_sk->phi_q, new_sk->phi_qlen);
@@ -442,9 +399,7 @@ void br_i31_update_key(  br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwl
         br_i31_decode(t3, new_sk->dq, new_sk->dqlen);
         t3[0] = t1[0];
         br_i31_add(t3, t1, 1);
-        t3[0] = br_i31_bit_length(t3 + 1, (mod[0] + 31) >> 5);
-        br_i31_encode(new_sk->dq, (t3[0] + 7 + BR_RSA_RAND_FACTOR) >> 3, t3);
-        new_sk->dqlen = (t3[0] + 7 + BR_RSA_RAND_FACTOR) >> 3;
+        br_i31_encode(new_sk->dq, new_sk->dqlen, t3);
 
         
         // re-blinding q
@@ -455,7 +410,6 @@ void br_i31_update_key(  br_rsa_private_key *new_sk, uint32_t *tmp, uint32_t fwl
         reblind(t3, t1, mod, t3, t4);
         t3[0] = t1[0] + BR_RSA_RAND_FACTOR;
         br_i31_encode(new_sk->q, new_sk->qlen, t3);
-        // /new_sk->qlen = (t3[0] + 7) >> 3;
 
                 
        // blinding qinv

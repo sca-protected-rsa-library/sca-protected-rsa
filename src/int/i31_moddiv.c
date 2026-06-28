@@ -329,6 +329,7 @@ br_i31_moddiv(uint32_t *x, const uint32_t *y, const uint32_t *m, uint32_t m0i,
 	memcpy(b, m + 1, len * sizeof *m);
 	memset(v, 0, len * sizeof *v);
 
+
 	/*
 	 * Loop below ensures that a and b are reduced by some bits each,
 	 * for a total of at least 30 bits.
@@ -439,6 +440,12 @@ br_i31_moddiv(uint32_t *x, const uint32_t *y, const uint32_t *m, uint32_t m0i,
 			cA = cAB | NOT(oa);
 
 			/*
+			 * Prevent GCC from inferring cA/cAB/cBA are 0/1 values
+			 * and converting the mask arithmetic below into branches.
+			 */
+			__asm volatile ("" : "+r"(cA), "+r"(cAB), "+r"(cBA));
+
+			/*
 			 * Conditional subtractions.
 			 */
 			a_lo -= b_lo & -cAB;
@@ -473,6 +480,7 @@ br_i31_moddiv(uint32_t *x, const uint32_t *y, const uint32_t *m, uint32_t m0i,
 		qb -= qb * (r & 2);
 		co_reduce_mod(u, v, len, pa, pb, qa, qb, m + 1, m0i);
 	}
+
 
 	/*
 	 * Now one of the arrays should be 0, and the other contains
