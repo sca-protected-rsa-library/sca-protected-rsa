@@ -370,7 +370,15 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		 * already set; otherwise, we do a constant-time lookup.
 		 */
 		if (win_len > 1) {
-			memset(t2, 0, mlen);
+			/*
+			 * The accumulator is filled with random words and the
+			 * window entry is *selected* with a constant-time MUX.
+			 * An OR-accumulation (|=) would only be correct on a
+			 * zeroed buffer, and a zero t2 would make the dummy
+			 * multiplication for a zero window trivially visible on
+			 * a power trace.
+			 */
+			make_rand(t2, 32 * (mwlen - 1));
 			t2[0] = curr_m[0];
 			base = t2 + mwlen;
 			int offset = 0;
@@ -379,7 +387,7 @@ br_i31_modpow_opt_rand(uint32_t *x,
 				uint32_t mask;
 				mask = -EQ(vals[u - 1], bits);
 				for (v = 1; v < mwlen; v ++) {
-					t2[v] |= mask & perm_base[v];
+					t2[v] ^= mask & (t2[v] ^ perm_base[v]);
 				}
 				
 				offset += 1;
