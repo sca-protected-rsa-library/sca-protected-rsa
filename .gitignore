@@ -4,8 +4,13 @@ src/*.o
 src/int/*.o
 src/rsa/*.o
 *.bin
+# ...except the firmware images shipped alongside the paper
+!paper/*.bin
 # Ignore dependency files
 *.d
 src/*.d
 src/int/*.d
 src/rsa/*.d
+# Build output at the repo root (paper/ holds the images that are kept)
+/main.elf
+/main.bin
