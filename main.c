@@ -2,6 +2,26 @@
 #include "bearssl.h"
 #include "inner.h"
 #include "rsa_test_keys.h"
+#if CT_UNPROTECTED
+#include "rsa_test_keys_plain.h"
+#endif
+
+/*
+ * 1 = measure the unprotected br_rsa_i31_private() on the plain CRT parameters
+ * recovered by host/unblind_keys.py, as a baseline. It cannot use the blinded
+ * keys: fed one it reports success and returns a wrong plaintext.
+ */
+#ifndef CT_UNPROTECTED
+#define CT_UNPROTECTED   0
+#endif
+
+/*
+ * 1 = run only the jitter check, 0 = run the 100-key sweep first as well.
+ * CT_JITTER_RUNS repetitions at ~29 s each (24 MHz core): 100 is ~48 min per pair.
+ */
+#define CT_JITTER_ONLY   0
+#define CT_JITTER_RUNS   100
+
 #define MAX_ROUND 100
 
 static const unsigned char RSA4096_P[] = {
@@ -455,6 +475,147 @@ check_equals(const char *banner, const void *v1, const void *v2, size_t len)
 
 
 
+/*
+ * Message cases run per key. The corner values are here to expose a branch on
+ * the message value, should one ever appear: the cycle count must not move
+ * between them.
+ */
+#if CT_UNPROTECTED
+#define KEY_COUNT    RSA_PLAIN_NUM_KEYS
+#define PRIVATE_OP   br_rsa_i31_private
+#else
+#define KEY_COUNT    RSA_NUM_KEYS
+#define PRIVATE_OP   br_rsa_i31_private_blind_mod_key_FI
+#endif
+
+enum { MSG_ZERO, MSG_ONE, MSG_NM1, MSG_RAND, MSG_CASES };
+static const char *const msg_name[MSG_CASES] = {
+	"m=0", "m=1", "m=n-1", "m=rand"
+};
+
+/* SRAM working buffers for mutable key fields — one copy reused each run */
+static uint8_t buf_n[RSA_N_BYTES];
+static uint8_t buf_r1[RSA_R_BYTES];
+static uint8_t buf_r2[RSA_R_BYTES];
+static uint8_t buf_p[RSA_P_BYTES];
+static uint8_t buf_q[RSA_P_BYTES];
+static uint8_t buf_iq[RSA_P_BYTES];
+static uint8_t buf_phi_p[RSA_P_BYTES];
+static uint8_t buf_phi_q[RSA_P_BYTES];
+static uint8_t buf_dp[RSA_DP_BYTES];
+static uint8_t buf_dq[RSA_DP_BYTES];
+/* e too: it is the only key field that would otherwise be read from flash
+ * inside the measured window, where a flash data access arbitrates with the
+ * ART instruction prefetch. */
+static uint8_t buf_e[sizeof rsa_test_keys[0].e];
+
+/*
+ * One measured decryption. Refreshes the key from flash (the private operation
+ * re-blinds it in place), builds the message, encrypts it and times the private
+ * operation. The plaintext is left in t2 and the recovered one in t3 so the
+ * caller can check the round trip. Returns the cycle count.
+ *
+ * Both the key sweep and the jitter check go through here, so the two are
+ * measured by identical code.
+ */
+static unsigned long long
+measure_decrypt(int key_idx, int mc, unsigned char *t2, unsigned char *t3,
+	size_t len, uint32_t *ret_out)
+{
+	unsigned int oldcount;
+	char str[100];
+
+#if CT_UNPROTECTED
+	const rsa4096_plain_key_t *k = &rsa_test_keys_plain[key_idx];
+
+	memcpy(buf_n,  k->n,  RSA_PLAIN_N_BYTES);
+	memcpy(buf_p,  k->p,  k->plen);
+	memcpy(buf_q,  k->q,  k->qlen);
+	memcpy(buf_dp, k->dp, k->dplen);
+	memcpy(buf_dq, k->dq, k->dqlen);
+	memcpy(buf_iq, k->iq, k->iqlen);
+	memcpy(buf_e,  k->e,  sizeof buf_e);
+
+	/* No r1/r2/phi: the stock operation neither takes nor re-blinds them. */
+	br_rsa_private_key sk = {
+		buf_n,         k->n_bitlen,
+		buf_p,         k->plen,
+		buf_q,         k->qlen,
+		buf_dp,        k->dplen,
+		buf_dq,        k->dqlen,
+		buf_iq,        k->iqlen,
+		buf_e,         k->elen,
+		NULL, 0, NULL, 0, NULL, 0, NULL, 0,
+	};
+#else
+	const rsa4096_blinded_key_t *k = &rsa_test_keys[key_idx];
+
+	memcpy(buf_n,     k->n,     RSA_N_BYTES);
+	memcpy(buf_r1,    k->r1,    k->r1len);
+	memcpy(buf_r2,    k->r2,    k->r2len);
+	memcpy(buf_p,     k->p,     k->plen);
+	memcpy(buf_q,     k->q,     k->qlen);
+	memcpy(buf_iq,    k->iq,    k->iqlen);
+	memcpy(buf_phi_p, k->phi_p, k->phi_plen);
+	memcpy(buf_phi_q, k->phi_q, k->phi_qlen);
+	memcpy(buf_dp,    k->dp,    k->dplen);
+	memcpy(buf_dq,    k->dq,    k->dqlen);
+	memcpy(buf_e,     k->e,     sizeof buf_e);
+
+	br_rsa_private_key sk = {
+		buf_n,         k->n_bitlen,
+		buf_p,         k->plen,
+		buf_q,         k->qlen,
+		buf_dp,        k->dplen,
+		buf_dq,        k->dqlen,
+		buf_iq,        k->iqlen,
+		buf_e,         k->elen,
+		buf_r1,        k->r1len,
+		buf_r2,        k->r2len,
+		buf_phi_p,     k->phi_plen,
+		buf_phi_q,     k->phi_qlen,
+	};
+#endif
+	br_rsa_public_key pk = {
+		buf_n,           RSA_N_BYTES,
+		buf_e,           k->elen,
+	};
+
+	switch (mc) {
+	case MSG_ZERO:
+		memset(t3, 0, len);
+		break;
+	case MSG_ONE:
+		memset(t3, 0, len);
+		t3[len - 1] = 0x01;
+		break;
+	case MSG_NM1:
+		/* n is odd, so n-1 is n with the low bit cleared */
+		memcpy(t3, buf_n, len);
+		t3[len - 1] &= 0xFE;
+		break;
+	default:
+		for (size_t b = 0; b < len; b += 4) {
+			uint32_t w = rng_get_random_blocking();
+			t3[b + 0] = (unsigned char)(w);
+			t3[b + 1] = (unsigned char)(w >> 8);
+			t3[b + 2] = (unsigned char)(w >> 16);
+			t3[b + 3] = (unsigned char)(w >> 24);
+		}
+		t3[0] = 0x00;   /* force m < n (n has its top bit set) */
+		break;
+	}
+	memcpy(t2, t3, len);    /* save plaintext before encryption */
+	if (!br_rsa_i31_public(t3, len, &pk)) {
+		sprintf(str, "encrypt failed (key %d %s)", key_idx, msg_name[mc]);
+		send_USART_str((unsigned char*)str);
+	}
+
+	oldcount = DWT_CYCCNT;
+	*ret_out = PRIVATE_OP(t3, &sk);
+	return (unsigned long long)(DWT_CYCCNT - oldcount);
+}
+
 int main(void) {
 	clock_setup();
 	gpio_setup();
@@ -469,7 +630,6 @@ int main(void) {
 	uint32_t ret = 0 ;
 
 	int i;
-	unsigned int oldcount;
 	unsigned long long newcount = 0;
 
 	SCS_DEMCR |= SCS_DEMCR_TRCENA;
@@ -492,11 +652,13 @@ int main(void) {
 		send_USART_str((unsigned char*)str);
 	}
 	check_equals("KAT RSA pub", t2, t3, len);
+#if !CT_UNPROTECTED
 	if (!br_rsa_i31_private_blind_mod_key_FI(t3, &RSA4096_EXT)) {
 		sprintf(str, "RSA private operation failed (4096)\n");
 		send_USART_str((unsigned char*)str);
 	}
 	check_equals("KAT RSA priv (4096)", t1, t3, len);
+#endif
 
 
   	send_USART_str((unsigned char*)"Done!");
@@ -504,76 +666,68 @@ int main(void) {
         send_USART_str((unsigned char*)"Test CT!");
 
 
-	/* SRAM working buffers for mutable key fields — one copy reused each iteration */
-	static uint8_t buf_n[RSA_N_BYTES];
-	static uint8_t buf_r1[RSA_R_BYTES];
-	static uint8_t buf_r2[RSA_R_BYTES];
-	static uint8_t buf_p[RSA_P_BYTES];
-	static uint8_t buf_q[RSA_P_BYTES];
-	static uint8_t buf_iq[RSA_P_BYTES];
-	static uint8_t buf_phi_p[RSA_P_BYTES];
-	static uint8_t buf_phi_q[RSA_P_BYTES];
-	static uint8_t buf_dp[RSA_DP_BYTES];
-	static uint8_t buf_dq[RSA_DP_BYTES];
+	char lbl[48];
 
-  	for (i = 0; i < RSA_NUM_KEYS; i++) {
-		const rsa4096_blinded_key_t *k = &rsa_test_keys[i];
+  	if (!CT_JITTER_ONLY) {
+		for (i = 0; i < KEY_COUNT; i++) {
+			for (int mc = 0; mc < MSG_CASES; mc ++) {
+				newcount = measure_decrypt(i, mc, t2, t3, len, &ret);
+				sprintf(str, "Cost of rsa_decrypt: %llu ret: %lu (key %d %s)",
+					newcount, (unsigned long)ret, i, msg_name[mc]);
+				send_USART_str((unsigned char*)str);
+				sprintf(lbl, "RSA decrypt (key %d %s)", i, msg_name[mc]);
+				check_equals(lbl, t2, t3, len);
+			}
+		}
+	}
 
-		/* refresh mutable fields from flash for this iteration */
-		memcpy(buf_n,     k->n,     RSA_N_BYTES);
-		memcpy(buf_r1,    k->r1,    k->r1len);
-		memcpy(buf_r2,    k->r2,    k->r2len);
-		memcpy(buf_p,     k->p,     k->plen);
-		memcpy(buf_q,     k->q,     k->qlen);
-		memcpy(buf_iq,    k->iq,    k->iqlen);
-		memcpy(buf_phi_p, k->phi_p, k->phi_plen);
-		memcpy(buf_phi_q, k->phi_q, k->phi_qlen);
-		memcpy(buf_dp,    k->dp,    k->dplen);
-		memcpy(buf_dq,    k->dq,    k->dqlen);
-
-		br_rsa_private_key sk = {
-			buf_n,         k->n_bitlen,
-			buf_p,         k->plen,
-			buf_q,         k->qlen,
-			buf_dp,        k->dplen,
-			buf_dq,        k->dqlen,
-			buf_iq,        k->iqlen,
-			(void*)k->e,   k->elen,
-			buf_r1,        k->r1len,
-			buf_r2,        k->r2len,
-			buf_phi_p,     k->phi_plen,
-			buf_phi_q,     k->phi_qlen,
-		};
-		br_rsa_public_key pk = {
-			buf_n,           RSA_N_BYTES,
-			(void*)k->e,     k->elen,
+	/*
+	 * Jitter check. Repeats one fixed (key, message) pair, so the input to the
+	 * private operation is identical every time and only the blinding
+	 * randomness and the hardware differ between runs.
+	 *
+	 * A difference that comes from a data-dependent branch reproduces on every
+	 * repetition of the same input; one that comes from the hardware (RNG
+	 * clock domain, flash/ART arbitration) shows up in a small fraction of
+	 * them. Two of the pairs below deviated by +3 cycles in the key sweep, the
+	 * third never did and is the control.
+	 */
+	send_USART_str((unsigned char*)"Test jitter!");
+	{
+		static const struct { int key; int mc; } jitter_pairs[] = {
+			{ 11, MSG_ONE },    /* deviated in the sweep */
+			{ 42, MSG_NM1 },    /* deviated in the sweep */
+			{  0, MSG_ZERO },   /* control: never deviated */
 		};
 
-                memcpy(t3, t1, len);
+		for (unsigned jp = 0; jp < sizeof jitter_pairs / sizeof jitter_pairs[0]; jp ++) {
+			int jkey = jitter_pairs[jp].key;
+			int jmc  = jitter_pairs[jp].mc;
+			unsigned long long lo = 0, hi = 0;
 
-                for (size_t b = 0; b < len; b += 4) {
-                        uint32_t w = rng_get_random_blocking();
-                        t3[b + 0] = (unsigned char)(w);
-                        t3[b + 1] = (unsigned char)(w >> 8);
-                        t3[b + 2] = (unsigned char)(w >> 16);
-                        t3[b + 3] = (unsigned char)(w >> 24);
-                }
-                t3[0] = 0x00;   /* force m < n (n has its top bit set) */
-                memcpy(t2, t3, len);    /* save plaintext before encryption */
-                if (!br_rsa_i31_public(t3, len, &pk)) {
-                        sprintf(str, "encrypt failed (key %d)", i);
-                        send_USART_str((unsigned char*)str);
-                }
-
-    		oldcount = DWT_CYCCNT;
-    		ret = br_rsa_i31_private_blind_mod_key_FI(t3, &sk);
-    		newcount = (DWT_CYCCNT - oldcount);
-                sprintf(str, "Cost of rsa_decrypt: %llu ret: %d", newcount, ret);
- 	        send_USART_str((unsigned char*)str);
-                check_equals("RSA decrypt", t2, t3, len);
-
-
-  	}
+			for (int rep = 0; rep < CT_JITTER_RUNS; rep ++) {
+				newcount = measure_decrypt(jkey, jmc, t2, t3, len, &ret);
+				if (rep == 0) {
+					lo = hi = newcount;
+				} else if (newcount < lo) {
+					lo = newcount;
+				} else if (newcount > hi) {
+					hi = newcount;
+				}
+				sprintf(str, "jitter %d/%d: %llu ret: %lu (key %d %s)",
+					rep + 1, CT_JITTER_RUNS, newcount,
+					(unsigned long)ret, jkey, msg_name[jmc]);
+				send_USART_str((unsigned char*)str);
+				sprintf(lbl, "RSA decrypt (key %d %s rep %d)",
+					jkey, msg_name[jmc], rep);
+				check_equals(lbl, t2, t3, len);
+			}
+			sprintf(str, "jitter summary (key %d %s): min %llu max %llu spread %llu over %d runs %s",
+				jkey, msg_name[jmc], lo, hi, hi - lo, CT_JITTER_RUNS,
+				lo == hi ? "CONSTANT" : "VARIES");
+			send_USART_str((unsigned char*)str);
+		}
+	}
 
   	
  

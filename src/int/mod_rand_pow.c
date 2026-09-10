@@ -147,11 +147,11 @@ sample_uniform_ct(uint32_t i, int N)
 
     uint32_t r = 0;
     for (int n = 0; n < N; n++) {
-        uint32_t x;
-        make_rand(&x, 32);
-        x &= mask;
+        uint32_t x[2];
+        make_rand(x, 32);
+        x[1] &= mask;
         /* r = (i > x) ? x : r, constant-time via MUX */
-        r = MUX(GT(i, x), x, r);
+        r = MUX(GT(i, x[1]), x[1], r);
     }
     return r;
 }
