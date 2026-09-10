@@ -27,7 +27,20 @@
 #include "../stm32wrapper.h"
 
 #define U      (2 + ((BR_MAX_RSA_FACTOR + 30) / 31))
-#define TLEN   (8 * U)
+/*
+ * Words of scratch space for the two exponentiations.
+ *
+ * Stock BearSSL uses 8*U. On a 2048-bit factor that leaves br_i31_modpow_opt()
+ * 248 to 326 words, while even a two-bit window needs (2^2+1)*66 = 330, so it
+ * falls back to win_len = 1: plain square-and-multiply. Building with
+ * -DBR_PRIV_TLEN_U=23 gives it the same budget br_rsa_i31_private_blind_mod_key_FI
+ * has, so the protected and unprotected paths can be compared at a comparable
+ * window size instead of the comparison being dominated by this difference.
+ */
+#ifndef BR_PRIV_TLEN_U
+#define BR_PRIV_TLEN_U 8
+#endif
+#define TLEN   (BR_PRIV_TLEN_U * U)
 
 
 /* see bearssl_rsa.h */
@@ -66,7 +79,7 @@ br_rsa_i31_private(unsigned char *x, const br_rsa_private_key *sk)
 	 * Compute the maximum factor length, in words.
 	 */
 	z = (long)(plen > qlen ? plen : qlen) << 3;
-	fwlen = 1 + 10;
+	fwlen = 1;
 	while (z > 0) {
 		z -= 31;
 		fwlen ++;
