@@ -29,6 +29,22 @@
 #define TLEN_TMP  (((BR_MAX_RSA_FACTOR + 2*BR_RSA_RAND_FACTOR + 93) / 31 + 7) & ~1u)
 #define ROTATE (1 << (3))
 
+/*
+ * How often the window table is re-permuted, counted in window iterations.
+ *
+ * The default re-permutes every 2^(win_len-1) iterations. Building with
+ * -DBR_PERM_EVERY_ITER re-permutes on every iteration, which is the
+ * conservative setting and gives the upper bound on the cost of the
+ * countermeasure. Both are constant-time: the interval is a function of
+ * win_len, which is derived from the buffer sizes, never from key or
+ * message data.
+ */
+#ifdef BR_PERM_EVERY_ITER
+#define PERM_INTERVAL(win_len)   1
+#else
+#define PERM_INTERVAL(win_len)   ((uint32_t)1 << ((win_len) - 1))
+#endif
+
 
 /*
  * Constant-time swap.
@@ -412,7 +428,7 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		}
 		base = t2 + mwlen;
 
-		if (++swap_count == ((1<<(win_len -1) ) )){
+		if ((uint32_t)++swap_count == PERM_INTERVAL(win_len)) {
 			fisher_yates_ct(idxs, num_elements);
 		
 			base = t2 + mwlen;
