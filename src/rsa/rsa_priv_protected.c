@@ -26,6 +26,17 @@
 #include "bearssl.h"
 #include "inner.h"
 #define U      (2 + ((BR_MAX_RSA_FACTOR + 30) / 31))
+/*
+ * Scratch words for the whole private operation. br_i31_modpow_opt_rand() gets
+ * TLEN - 5*fwlen of them (fwlen = 82 for a 2200-bit blinded factor) and picks
+ * the largest window whose table of (2^k + 1) * mwlen words fits. With the
+ * 76-word blinded modulus a 4-bit window needs 17 * 76 = 1292 words: 23*U
+ * leaves 1200 and gives a 3-bit window (7 table entries), 25*U would leave
+ * 1340 and give 4 bits. The 3-bit window is deliberate: with the table
+ * re-permuted on every iteration a 4-bit window is slower, because the sorting
+ * network grows from 16 to 59 compare-swaps and the saved multiplications are
+ * only 6 %. The 8-word r1/r2 moduli get 4 bits either way.
+ */
 #define TLEN   (23 * U)
 
 
