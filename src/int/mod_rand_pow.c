@@ -196,7 +196,8 @@ br_i31_modpow_opt_rand(uint32_t *x,
 
 	uint32_t r[(((4*BR_RSA_RAND_FACTOR)) + 63) >> 5];
 	uint32_t new_r[(BR_RSA_RAND_FACTOR + 63) >> 5];
-	
+
+
 	make_rand( r, (BR_RSA_RAND_FACTOR + 32));
 	r[1] |= 1;
 	
@@ -273,12 +274,40 @@ br_i31_modpow_opt_rand(uint32_t *x,
 		memcpy(t2 + mwlen, x, mlen);
 		base = t2 + mwlen;
 		for (u = 2; u < ((unsigned)1 << win_len); u ++) {
-
-			
-
+			/*
+			 * Build the window table x^1..x^(2^k-1) as a Montgomery
+			 * chain. This MUST use one consistent (curr_m, m0i): the
+			 * modulus and its -1/m mod 2^31 cannot change between the
+			 * multiplies, or the reduction is wrong.
+			 */
 			br_i31_montymul(base + mwlen, base, x, curr_m, m0i);
-			
+			base += mwlen;
+		}
 
+		/*
+		 * Additively re-randomise each table entry: entry += r_u * m
+		 * with a fresh random multiple of m per entry. Since m divides
+		 * the added term, every entry stays correct modulo m and the
+		 * masks cancel in the Montgomery multiplies that use them, so
+		 * the result is unchanged - only the stored representation
+		 * differs, and differently for each entry.
+		 */
+		base = t2 + mwlen;
+		for (u = 1; u < ((unsigned)1 << win_len); u ++) {
+			/*
+			 * Build the mask r_u * m in the free t1 buffer and add it,
+			 * NOT in curr_m: curr_m is the modulus the table entries are
+			 * in Montgomery form under, and the Montgomery-1 built right
+			 * after this loop uses it too, so it must stay the modulus
+			 * the entries were built with. Regenerating curr_m here
+			 * corrupts the result.
+			 */
+			br_i31_zero(t1, prev_bitlen);
+			make_rand(new_r, BR_RSA_RAND_FACTOR);
+			new_r[1] |= 1;
+			br_i31_mulacc(t1, m, new_r);
+			t1[0] = prev_bitlen;
+			br_i31_add(base, t1, 1);
 			base += mwlen;
 		}
 	}
@@ -337,7 +366,7 @@ br_i31_modpow_opt_rand(uint32_t *x,
 	acc = 0;
 	acc_len = 0;
 	int swap_count = 0;
-	
+
 
 	while (acc_len > 0 || elen > 0) {
 		int i, k;
@@ -448,7 +477,8 @@ br_i31_modpow_opt_rand(uint32_t *x,
 
 	}
 
-	
+
+
 	/*
 	 * Convert back from Montgomery representation, and exit.
 	 */
