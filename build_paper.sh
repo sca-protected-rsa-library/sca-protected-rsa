@@ -1,7 +1,7 @@
 #!/bin/sh
-# Builds the two firmware images shipped with the paper: the window table is
-# re-permuted either every 2^(k-1) window iterations (default) or on every
-# iteration (BR_PERM_EVERY_ITER). Everything else is identical.
+# Builds the two firmware images shipped with the paper: the protected
+# implementation with the window table re-permuted on every iteration
+# (BR_PERM_EVERY_ITER), and the unprotected br_rsa_i31_private baseline.
 set -e
 OUT=paper
 PREFIX=${PREFIX:-arm-none-eabi}
@@ -25,7 +25,6 @@ build() {                       # $1 = name, $2 = extra -D flags
 	printf '%-28s %s\n' "$1" "$("$PREFIX"-size main.elf | tail -1)"
 }
 
-build perm-window "" 
 build perm-every  "-DBR_PERM_EVERY_ITER"
 build unprotected-win "-DCT_UNPROTECTED=1 -DBR_PRIV_TLEN_U=23"
 make clean >/dev/null
@@ -33,12 +32,11 @@ make clean >/dev/null
 {
 	echo "Firmware images accompanying the constant-time measurements."
 	echo
-	echo "perm-window : window table re-permuted every 2^(k-1) window iterations"
-	echo "perm-every  : window table re-permuted on every window iteration"
+	echo "perm-every  : protected, window table re-permuted on every window iteration"
 	echo "unprotected-win : br_rsa_i31_private(), no blinding, no fault check, on"
 	echo "              the plain CRT parameters recovered by host/unblind_keys.py,"
-	echo "              given the 23*U scratch budget the protected entry point"
-	echo "              has so that both use a sliding window"
+	echo "              given the same 23*U scratch budget as the protected entry"
+	echo "              point, which lets it use a 4-bit sliding window"
 	echo
 	echo "Target      : STM32F405 (Cortex-M4F), core clock per clock_setup()"
 	echo "Compiler    : $("$PREFIX"-gcc --version | head -1)"
