@@ -12,10 +12,6 @@ build() {                       # $1 = name, $2 = extra -D flags
 	make clean >/dev/null
 	make main.bin main.elf DEFINES="$BASE_DEFINES $2" >/dev/null 2>&1
 	cp main.elf "$OUT/$1.elf"
-	# Anonymous submission: drop the symbol table, debug info and the
-	# toolchain .comment. None of those sections are loaded, so the flashed
-	# image does not change - the .bin is re-derived from the stripped ELF
-	# and compared against the unstripped one to prove exactly that.
 	"$PREFIX"-strip --strip-all -R .comment "$OUT/$1.elf"
 	"$PREFIX"-objcopy -Obinary "$OUT/$1.elf" "$OUT/$1.bin"
 	if ! cmp -s "$OUT/$1.bin" main.bin; then

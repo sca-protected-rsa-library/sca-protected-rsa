@@ -6,19 +6,12 @@
 #include "rsa_test_keys_plain.h"
 #endif
 
-/*
- * 1 = measure the unprotected br_rsa_i31_private() on the plain CRT parameters
- * recovered by host/unblind_keys.py, as a baseline. It cannot use the blinded
- * keys: fed one it reports success and returns a wrong plaintext.
- */
+
 #ifndef CT_UNPROTECTED
 #define CT_UNPROTECTED   0
 #endif
 
-/*
- * 1 = run only the jitter check, 0 = run the 100-key sweep first as well.
- * CT_JITTER_RUNS repetitions at ~29 s each (24 MHz core): 100 is ~48 min per pair.
- */
+
 #define CT_JITTER_ONLY   0
 #define CT_JITTER_RUNS   100
 
@@ -475,11 +468,7 @@ check_equals(const char *banner, const void *v1, const void *v2, size_t len)
 
 
 
-/*
- * Message cases run per key. The corner values are here to expose a branch on
- * the message value, should one ever appear: the cycle count must not move
- * between them.
- */
+
 #if CT_UNPROTECTED
 #define KEY_COUNT    RSA_PLAIN_NUM_KEYS
 #define PRIVATE_OP   br_rsa_i31_private
@@ -504,20 +493,9 @@ static uint8_t buf_phi_p[RSA_P_BYTES];
 static uint8_t buf_phi_q[RSA_P_BYTES];
 static uint8_t buf_dp[RSA_DP_BYTES];
 static uint8_t buf_dq[RSA_DP_BYTES];
-/* e too: it is the only key field that would otherwise be read from flash
- * inside the measured window, where a flash data access arbitrates with the
- * ART instruction prefetch. */
 static uint8_t buf_e[sizeof rsa_test_keys[0].e];
 
-/*
- * One measured decryption. Refreshes the key from flash (the private operation
- * re-blinds it in place), builds the message, encrypts it and times the private
- * operation. The plaintext is left in t2 and the recovered one in t3 so the
- * caller can check the round trip. Returns the cycle count.
- *
- * Both the key sweep and the jitter check go through here, so the two are
- * measured by identical code.
- */
+
 static unsigned long long
 measure_decrypt(int key_idx, int mc, unsigned char *t2, unsigned char *t3,
 	size_t len, uint32_t *ret_out)
@@ -685,12 +663,6 @@ int main(void) {
 	 * Jitter check. Repeats one fixed (key, message) pair, so the input to the
 	 * private operation is identical every time and only the blinding
 	 * randomness and the hardware differ between runs.
-	 *
-	 * A difference that comes from a data-dependent branch reproduces on every
-	 * repetition of the same input; one that comes from the hardware (RNG
-	 * clock domain, flash/ART arbitration) shows up in a small fraction of
-	 * them. Two of the pairs below deviated by +3 cycles in the key sweep, the
-	 * third never did and is the control.
 	 */
 	send_USART_str((unsigned char*)"Test jitter!");
 	{
