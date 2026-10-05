@@ -1,0 +1,129 @@
+Cycle counts and footprint of the RSA-4096 private-key operation
+=================================================================
+
+Target   : STM32F405 (Cortex-M4F) @ 24 MHz core, 0 flash wait states
+Counter  : DWT_CYCCNT, read immediately before and after the call
+Toolchain: Arch Linux arm-none-eabi-gcc 14.2.0 (binutils 2.43, newlib
+           4.4.0.20231231), -O2. The other libraries in the comparison table
+           were built with the same compiler version.
+Keys     : RSA-4096, CRT, 100 keys. The protected image uses the blinded keys
+           in rsa_test_keys.h; the baseline uses the same 100 keys with the
+           plain CRT parameters recovered by host/unblind_keys.py.
+
+Timing
+------
+
+  configuration                          cycles        time    vs baseline
+  br_rsa_i31_private, 23*U scratch  436,694,104    18.196 s          1.000
+  protected, permute every iteration  734,327,405    30.597 s          1.682
+
+  cost of the countermeasures       297,633,301    12.401 s        +68.2 %
+
+The figures are the value the harness reported for each image, measured on
+the images in this directory (rebuilt from this revision, byte for byte the
+images that were flashed; SHA-256 in BUILDINFO.txt). The harness runs 100
+keys x 4 message classes (m=0, m=1, m=n-1, uniform random m < n), then 3
+fixed (key, message) pairs repeated 100 times.
+
+On earlier builds of the same sources the count was identical across keys,
+messages, blinding randomness and power cycles. It is NOT comparable across
+builds: it carries a code-layout term and a compiler term. The same sources
+built with Fedora's GCC 15.2.0 measured 733,438,966 (protected) and
+437,078,185 (baseline), ratio 1.678; the compiler moves the two images by
++0.12 % and -0.09 %, and the overhead rounds to 68 % either way. Always cite
+the image by name and hash.
+
+Window and permutation parameters, read out of an instrumented host build
+-------------------------------------------------------------------------
+
+The window the modular exponentiation picks is the largest whose table of
+(2^k + 1) * mwlen words fits the scratch it is given, so the scratch budget
+(23*U for both images) and the modulus width set it:
+
+  exponentiation                 mwlen  needs  has    k  iterations
+  protected s1, s2 (p*r1, q*r2)     76    684  1200   3        750
+  protected s1', s2' (r1, r2)        8    136  1200   4        562
+  baseline  s1, s2 (p, q)           68   1156  1406   4        512
+                                                1338
+
+The protected exponent is blinded: 281 bytes = 2248 bits. The baseline
+exponent is the plain 2048-bit dp/dq.
+
+The protected p and q exponentiations get a 3-bit window although the budget
+is the same as the baseline's, because blinding widens the modulus from 68 to
+76 words and a 4-bit table then needs 17 * 76 = 1292 words against the 1200
+available. A 4-bit window is slower with the table re-permuted on every
+iteration: the sorting network grows from 16 to 59 compare-swaps per
+permutation (3.7x) while the number of Montgomery multiplications falls by
+only 6.3 % (6000 -> 5620 for p and q). A 4-bit build (25*U scratch) measured
+782,635,992 cycles with GCC 15.2.0, 6.7 % above the 3-bit build with the same
+compiler. The overhead against the baseline is an upper bound, since the
+baseline runs the larger window.
+
+The window table is re-permuted on every iteration: 2628 Fisher-Yates runs
+per signing, 2 x (750 + 1) + 2 x (562 + 1), counting the initial permutation.
+
+Why the baseline is built at 23*U
+---------------------------------
+
+The upstream BearSSL budget for br_rsa_i31_private is 8*U. After mp, mq, s1
+and s2 that leaves the exponentiation 248 to 326 words, below the 340 even a
+2-bit window needs on a 68-word modulus, so it falls back to a 1-bit window
+(square-and-multiply, twice the Montgomery multiplications). Measuring
+against that would compare window sizes rather than countermeasures, so no
+image is shipped for it. The baseline image is given the same 23*U budget as
+the protected entry point.
+
+Memory (-fstack-usage frames combined with the ARM call graph, GCC 14.2.0)
+--------------------------------------------------------------------------
+
+  worst-case stack of one private-key operation, library code only (libc
+  memcpy/memset frames and interrupts are not included; a static bound, not
+  a measurement on the board)
+
+                                             own frame   peak over call chain
+    br_rsa_i31_private, 23*U (baseline)         6536 B          6736 B
+    br_rsa_i31_private_blind_mod_key_FI         6712 B          7440 B
+
+  At the same scratch budget the protected path needs 704 B more stack. Below
+  the entry function the protected call chain adds 728 B
+  (br_i31_modpow_opt_rand and what it calls), the baseline 200 B. BearSSL's
+  default 8*U scratch buffer (2.2 KB) is not shipped: it leaves room for no
+  window. The scratch buffer itself is a local array on the stack, 6444 B in
+  both images, and is included in the figures above.
+
+  key material (br_rsa_private_key fields, per key)
+    plain    p,q,dp,dq,iq                                       1280 B
+    blinded  + r1,r2,phi_p,phi_q                                1943 B
+    growth                                          +663 B, +51.8 %
+
+  The blinded key is re-blinded in place after every signature, so it has to
+  live in RAM (1943 B); the plain key can stay in flash.
+
+  The stack is placed in the 64 KiB CCM region (linker script), .data/.bss in
+  the 128 KiB main SRAM. The 7440 B peak is 11.4 % of the CCM, 3.8 % of the
+  192 KiB of SRAM in total.
+
+Verification done on the host against the code in this tree
+------------------------------------------------------------
+
+  * br_i31_modpow_opt_rand against BearSSL's br_i31_modpow: 5 modulus sizes
+    x 4 seeds x 20 exponentiations, no mismatch.
+  * Full RSA-4096 signing on all 100 keys x 4 message classes (m=0, m=1,
+    m=n-1, random), permuting on every iteration and every 2^(k-1)
+    iterations: 0 wrong results.
+  * Baseline on the 100 recovered plain keys: 0 wrong results.
+  * Static analysis of the compiled images (GCC 14.2.0, also checked with
+    Arm 14.2.1 and Fedora 15.2.0): no udiv/sdiv in the cryptographic
+    functions, no conditional memory access under an IT block outside the
+    index-driven decode/encode, and the forward conditional branches test
+    lengths and loop counters only. The extra branch GCC 14 adds in
+    br_i31_moddiv tests (m[0]+31)>>5, the public word length.
+
+Images
+------
+
+  perm-every.{elf,bin}       protected, window table re-permuted every iteration
+  unprotected-win.{elf,bin}  br_rsa_i31_private, 23*U
+
+See BUILDINFO.txt for compiler, flags, revision and SHA-256.

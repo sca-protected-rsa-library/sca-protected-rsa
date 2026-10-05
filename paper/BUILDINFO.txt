@@ -1,0 +1,31 @@
+Firmware images accompanying the constant-time measurements.
+
+perm-every  : protected, window table re-permuted on every window iteration
+unprotected-win : br_rsa_i31_private(), no blinding, no fault check, on
+              the plain CRT parameters recovered by host/unblind_keys.py,
+              given the same 23*U scratch budget as the protected entry
+              point, which lets it use a 4-bit sliding window
+
+Target      : STM32F405 (Cortex-M4F), core clock per clock_setup()
+Compiler    : arm-none-eabi-gcc (Arch Repository) 14.2.0
+Flags       : -O2 -DSTM32F4 -DCORTEX_M4 -DWITH_PERFORMANCE_BENCHMARKING \
+              [-DBR_PERM_EVERY_ITER | -DCT_UNPROTECTED=1 -DBR_PRIV_TLEN_U=23] \
+              -mthumb -mcpu=cortex-m4 -mfloat-abi=hard -mfpu=fpv4-sp-d16
+Source      : git 5faf850
+Built       : 2026-10-05T05:51:41Z
+
+Each image runs 100 keys x 4 message classes (m=0, m=1, m=n-1, m=random),
+then repeats three fixed (key, message) pairs 100 times each, reporting
+DWT_CYCCNT over the private-key operation for every run: the protected
+br_rsa_i31_private_blind_mod_key_FI, or br_rsa_i31_private in the
+baseline image.
+
+ELF images are stripped of symbols, debug info and .comment; the
+loaded image is unaffected and each .bin is derived from its
+stripped ELF.
+
+SHA-256:
+4372e0b25ee48eadf87c3d2bd0ef23a712198c91d56c2270a0f0754d45740e12    perm-every.elf
+68446afa315583846f768a6f5377c570c5eebd960128a6c070e5808ce3abc9ee    unprotected-win.elf
+17c073dc280d233bca43251286d9bc54b9c6081917ed9a839981e178c1678440    perm-every.bin
+fee9df4968814204da57710ca2554745c02e7fe034808482b522b177a22b00a0    unprotected-win.bin
